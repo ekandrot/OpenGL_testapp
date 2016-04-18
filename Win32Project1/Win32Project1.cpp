@@ -450,12 +450,7 @@ int main( void )
     TextureShader textureShader = TextureShader( "..\\shaders\\SimpleTextureShader.vert", "..\\shaders\\SimpleTextureShader.frag" );
     textureShader.use();
 
-    Texture grass1Tex = Texture(std::wstring(L"..\\textures\\GrassGreenTexture0001.jpg"));
-    Texture grass2Tex = Texture(std::wstring(L"..\\textures\\GrassGreenTexture0002.jpg"));
-    Texture grass3Tex = Texture(std::wstring(L"..\\textures\\GrassGreenTexture0003.jpg"));
-    Texture grass4Tex = Texture(std::wstring(L"..\\textures\\GrassGreenTexture0004.jpg"));
-    Texture grass5Tex = Texture(std::wstring(L"..\\textures\\GrassGreenTexture0005.jpg"));
-    Texture helloTex = Texture(std::wstring(L"..\\textures\\hello.bmp"));
+    Texture grass1Tex = Texture(std::wstring(L"..\\textures\\Grass_3.png"));
 
     FixedColorShader fixedColorShader = FixedColorShader( "..\\shaders\\FixedColorShader.vert", "..\\shaders\\FixedColorShader.frag" );
     fixedColorShader.use();
