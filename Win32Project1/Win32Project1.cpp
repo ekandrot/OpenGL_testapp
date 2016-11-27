@@ -375,42 +375,37 @@ int main( void )
 #endif
 
 
+    GLuint CubeID;
+    glGenVertexArrays(1, &CubeID);
+    glBindVertexArray(CubeID);
+    GLfloat cubeData[8 * 3] = { 0,0,0, 1,0,0, 0,1,0, 1,1,0, 0,0,1, 1,0,1, 0,1,1, 1,1,1 };
+    GLint cubeIndexes[8 * 4] = { 0,1,3,2  };
+
+
 
     GLuint GridArrayID;
     glGenVertexArrays(1, &GridArrayID);
     glBindVertexArray(GridArrayID);
 
-    // 3 values per vertex, 2 vertex per line, 2 sets of 11 lines
-    GLfloat g_vertex_buffer_data[400*2*3];
+    // 3 values per vertex, 4 vertex per quad
+    GLfloat g_vertex_buffer_data[100*3*4];
     for (int j=0; j<10; j++) {
         for (int i=0; i<10; ++i) {
-            g_vertex_buffer_data[240*j + i*24] = (GLfloat)i;
-            g_vertex_buffer_data[240*j + i*24+1] = (GLfloat)j;
-            g_vertex_buffer_data[240*j + i*24+2] = heightMap[0][i][j];
-            g_vertex_buffer_data[240*j + i*24+3] = (GLfloat)i+1;
-            g_vertex_buffer_data[240*j + i*24+4] = (GLfloat)j;
-            g_vertex_buffer_data[240*j + i*24+5] = heightMap[0][i][j];
+            g_vertex_buffer_data[120*j + i* 12] = (GLfloat)i;
+            g_vertex_buffer_data[120*j + i* 12 +1] = (GLfloat)j;
+            g_vertex_buffer_data[120*j + i* 12 +2] = heightMap[0][i][j];
+            g_vertex_buffer_data[120*j + i* 12 +3] = (GLfloat)i+1;
+            g_vertex_buffer_data[120*j + i* 12 +4] = (GLfloat)j;
+            g_vertex_buffer_data[120*j + i* 12 +5] = heightMap[0][i][j];
 
-            g_vertex_buffer_data[240*j + i*24+6] = (GLfloat)i+1;
-            g_vertex_buffer_data[240*j + i*24+7] = (GLfloat)j;
-            g_vertex_buffer_data[240*j + i*24+8] = heightMap[0][i][j];
-            g_vertex_buffer_data[240*j + i*24+9] = (GLfloat)i+1;
-            g_vertex_buffer_data[240*j + i*24+10] = (GLfloat)j+1;
-            g_vertex_buffer_data[240*j + i*24+11] = heightMap[0][i][j];
 
-            g_vertex_buffer_data[240*j + i*24+12] = (GLfloat)i+1;
-            g_vertex_buffer_data[240*j + i*24+13] = (GLfloat)j+1;
-            g_vertex_buffer_data[240*j + i*24+14] = heightMap[0][i][j];
-            g_vertex_buffer_data[240*j + i*24+15] = (GLfloat)i;
-            g_vertex_buffer_data[240*j + i*24+16] = (GLfloat)j+1;
-            g_vertex_buffer_data[240*j + i*24+17] = heightMap[0][i][j];
+            g_vertex_buffer_data[120*j + i* 12 +6] = (GLfloat)i+1;
+            g_vertex_buffer_data[120*j + i* 12 +7] = (GLfloat)j+1;
+            g_vertex_buffer_data[120*j + i* 12 +8] = heightMap[0][i][j];
+            g_vertex_buffer_data[120*j + i* 12 +9] = (GLfloat)i;
+            g_vertex_buffer_data[120*j + i* 12 +10] = (GLfloat)j+1;
+            g_vertex_buffer_data[120*j + i* 12 +11] = heightMap[0][i][j];
 
-            g_vertex_buffer_data[240*j + i*24+18] = (GLfloat)i;
-            g_vertex_buffer_data[240*j + i*24+19] = (GLfloat)j+1;
-            g_vertex_buffer_data[240*j + i*24+20] = heightMap[0][i][j];
-            g_vertex_buffer_data[240*j + i*24+21] = (GLfloat)i;
-            g_vertex_buffer_data[240*j + i*24+22] = (GLfloat)j;
-            g_vertex_buffer_data[240*j + i*24+23] = heightMap[0][i][j];
         }
     }
 
@@ -432,29 +427,19 @@ int main( void )
     );
 
 
-    // 2 values per vertex, 2 vertex per line, 2 sets of 11 lines
-    GLfloat textureCoordData[400*2*2];
+    // 2 values per vertex, 4 vertex per quad
+    GLfloat textureCoordData[100*2*4];
     for (int j=0; j<10; j++) {
         for (int i=0; i<10; ++i) {
-            textureCoordData[160*j + i*16] = 0;
-            textureCoordData[160*j + i*16+1] = 0;
-            textureCoordData[160*j + i*16+2] = 1;
-            textureCoordData[160*j + i*16+3] = 0;
+            textureCoordData[80*j + i*8] = 0;
+            textureCoordData[80*j + i*8+1] = 0;
+            textureCoordData[80*j + i*8+2] = 1;
+            textureCoordData[80*j + i*8+3] = 0;
 
-            textureCoordData[160*j + i*16+4] = 1;
-            textureCoordData[160*j + i*16+5] = 0;
-            textureCoordData[160*j + i*16+6] = 1;
-            textureCoordData[160*j + i*16+7] = 1;
-
-            textureCoordData[160*j + i*16+8] = 1;
-            textureCoordData[160*j + i*16+9] = 1;
-            textureCoordData[160*j + i*16+10] = 0;
-            textureCoordData[160*j + i*16+11] = 1;
-
-            textureCoordData[160*j + i*16+12] = 0;
-            textureCoordData[160*j + i*16+13] = 1;
-            textureCoordData[160*j + i*16+14] = 0;
-            textureCoordData[160*j + i*16+15] = 0;
+            textureCoordData[80*j + i*8+4] = 1;
+            textureCoordData[80*j + i*8+5] = 1;
+            textureCoordData[80*j + i*8+6] = 0;
+            textureCoordData[80*j + i*8+7] = 1;
         }
     }
 
@@ -560,7 +545,7 @@ int main( void )
         glBindVertexArray(GridArrayID);
         glEnableVertexAttribArray(0);
         glEnableVertexAttribArray(1);
-        glDrawArrays(GL_QUADS, 0, 800); // 2 vertex per line, 4 lines per square, 100 squares
+        glDrawArrays(GL_QUADS, 0, 400); // 4 vertex per square, 100 squares
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);
 
