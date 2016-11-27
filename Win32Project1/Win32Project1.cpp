@@ -378,8 +378,37 @@ int main( void )
     GLuint CubeID;
     glGenVertexArrays(1, &CubeID);
     glBindVertexArray(CubeID);
-    GLfloat cubeData[8 * 3] = { 0,0,0, 1,0,0, 0,1,0, 1,1,0, 0,0,1, 1,0,1, 0,1,1, 1,1,1 };
-    GLint cubeIndexes[8 * 4] = { 0,1,3,2  };
+    GLfloat cubeData[12 * 5] = {
+        0,0,0, 0,0,  0,1,0, 1,0,  0,1,1, 1,1,  0,0,1, 0,1,  1,1,0, 0,0,  1,1,1, 0,1,  1,0,0, 1,0,  1,0,1, 1,1,
+        1,0,1, 0,0,  0,0,1, 1,0,  1,0,0, 0,1,  0,0,0, 1,1 };
+    GLint cubeIndexes[8 * 4] = { 0,1,2,3, 1,4,5,2, 4,6,7,5, 6,0,3,7, 2,5,8,9, 1,4,10,11 };
+
+    GLuint tempBufID;
+    glGenBuffers(1, &tempBufID);
+    glBindBuffer(GL_ARRAY_BUFFER, tempBufID);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(cubeData), cubeData, GL_STATIC_DRAW);
+
+    glGenBuffers(1, &tempBufID);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tempBufID);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cubeIndexes), cubeIndexes, GL_STATIC_DRAW);
+    
+    glVertexAttribPointer(
+        0,  // attribute 0. No particular reason for 0, but must match the layout in the shader.
+        3,  // size
+        GL_FLOAT,   // type
+        GL_FALSE,   // normalized?
+        5*sizeof(GLfloat),  // stride
+        (void*)0 // array buffer offset
+    );
+
+    glVertexAttribPointer(
+        1,
+        2,  // size
+        GL_FLOAT,   // type
+        GL_FALSE,   // normalized?
+        5 * sizeof(GLfloat),  // stride
+        (void*)(3 * sizeof(GLfloat)) // array buffer offset
+    );
 
 
 
@@ -507,6 +536,7 @@ int main( void )
     textureShader.use();
 
     Texture grass1Tex = Texture(std::wstring(L"..\\textures\\Grass_3.png"));
+    Texture brick1Tex = Texture(std::wstring(L"..\\textures\\brick_0.jpg"));
 
     FixedColorShader fixedColorShader = FixedColorShader( "..\\shaders\\FixedColorShader.vert", "..\\shaders\\FixedColorShader.frag" );
     fixedColorShader.use();
@@ -525,14 +555,14 @@ int main( void )
         float ratio;
         int width, height;
         glfwGetFramebufferSize(window, &width, &height);
-        ratio = width / (float) height;
+        ratio = width / (float)height;
         glViewport(0, 0, width, height);
         GLfloat MVP[16];
         GLfloat look[3];
         get_eye(look);  // get eye so we know which direction forward is
         update_pos(look);
         get_eye(look);  // get the eye in its new position, after movement has happened
-        lookAt(pos[0],pos[1],pos[2]+PLAYER_HEIGHT,  look[0], look[1], look[2],  0,0,1, view);
+        lookAt(pos[0], pos[1], pos[2] + PLAYER_HEIGHT, look[0], look[1], look[2], 0, 0, 1, view);
         perspective(45, ratio, 0.1f, 100.0f, projection);
         matmul(projection, view, MVP);
 
@@ -549,10 +579,29 @@ int main( void )
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);
 
+        // draw a test cube
+        {
+            textureShader.use();
+            brick1Tex.bind();
+            glActiveTexture(GL_TEXTURE0);
+            glUniform1i(textureShader.samplerID, 0);
+            GLfloat model[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 3,4,2,1 };
+            GLfloat lineMVP[16];
+            matmul(MVP, model, lineMVP);
+            glUniformMatrix4fv(fixedColorShader.matrixID, 1, GL_FALSE, lineMVP);
+            glBindVertexArray(CubeID);
+            glUniform3fv(fixedColorShader.colorID, 1, red);
+            glEnableVertexAttribArray(0);
+            glEnableVertexAttribArray(1);
+            glDrawElements(GL_QUADS, 24, GL_UNSIGNED_INT, nullptr); // 4 vertex per quad
+            glDisableVertexAttribArray(0);
+            glDisableVertexAttribArray(1);
+        }
+
         // draw a spinning red line, just to show we are alive :)
         fixedColorShader.use();
-        #define SCALE  0.03f
-        GLfloat model[16] = {cosf(t*SCALE),sinf(t*SCALE),0,0, -sinf(t*SCALE),cosf(t*SCALE),0,0, 0,0,1,0, 0.9f,0.9f,0,1};
+#define SCALE  0.03f
+        GLfloat model[16] = { cosf(t*SCALE),sinf(t*SCALE),0,0, -sinf(t*SCALE),cosf(t*SCALE),0,0, 0,0,1,0, 0.9f,0.9f,0,1 };
         GLfloat lineMVP[16];
         matmul(MVP, model, lineMVP);
         glUniformMatrix4fv(fixedColorShader.matrixID, 1, GL_FALSE, lineMVP);

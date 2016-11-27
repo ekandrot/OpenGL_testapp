@@ -50,5 +50,7 @@
     <None Include="..\shaders\FixedColorShader.vert" />
     <None Include="..\shaders\SimpleTextureShader.vert" />
     <None Include="..\shaders\SimpleTextureShader.frag" />
+    <None Include="..\shaders\ComboTextureShader.frag" />
+    <None Include="..\shaders\ComboTextureShader.vert" />
   </ItemGroup>
 </Project>

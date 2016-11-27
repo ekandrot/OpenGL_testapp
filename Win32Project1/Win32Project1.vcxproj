@@ -101,6 +101,8 @@
     <ClCompile Include="Win32Project1.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\shaders\ComboTextureShader.frag" />
+    <None Include="..\shaders\ComboTextureShader.vert" />
     <None Include="..\shaders\FixedColorShader.frag" />
     <None Include="..\shaders\SimpleTextureShader.frag" />
     <None Include="..\shaders\SimpleTextureShader.vert" />
