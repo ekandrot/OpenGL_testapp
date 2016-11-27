@@ -17,6 +17,25 @@
 #define max(a, b) ( (a) < (b) ? (b) : (a) )
 #define min(a, b) ( (a) > (b) ? (b) : (a) )
 
+struct Cube {
+    double _pos[3];
+    double _r;   // distance from center to any side
+
+    Cube(double x, double y, double z, double r) {
+        _pos[0] = x;
+        _pos[1] = y;
+        _pos[2] = z;
+        _r = r;
+    }
+};
+
+
+
+struct Player {
+
+};
+
+
 const GLfloat PLAYER_HEIGHT=1.5f;
 
 enum PlayerMovementState {
@@ -29,11 +48,11 @@ enum PlayerMovementState {
 GLfloat upDownV = 0;
 GLfloat leftRightV = 0; //left neg, right pos
 GLfloat forwardV = 0, rotationV = 0;
-GLfloat pos[3] = {0,0,1.2f};
-GLfloat eyePos[3] = {0,0,1.2f+PLAYER_HEIGHT};
+GLfloat pos[3] = {5,5,1.2f};
+GLfloat eyePos[3] = {5,5,1.2f+PLAYER_HEIGHT};
 GLfloat facing = 45 * 3.14159f / 180;
 GLfloat facingUpDown = -45 * 3.14159f / 180;
-static PlayerMovementState playerState = Falling;
+static PlayerMovementState playerState = Flying;
 bool gPlayerCanMove=true;
 
 const GLfloat GRAVITY = -0.001f;
@@ -189,7 +208,7 @@ void update_pos_onground(const GLfloat* look) {
         pos[1] = newPos[1];
         pos[2] = newPos[2];
     }
-    facing += rotationV;        // need to include a timestamp to handle fps correctly
+    //facing += rotationV;        // need to include a timestamp to handle fps correctly
 }
 
 void update_pos_falling(const GLfloat* look) {
@@ -215,7 +234,24 @@ void update_pos_falling(const GLfloat* look) {
         pos[1] = newPos[1];
         pos[2] = newPos[2];
     }
-    facing += rotationV;        // need to include a timestamp to handle fps correctly
+    //facing += rotationV;        // need to include a timestamp to handle fps correctly
+}
+
+void update_pos_flying(const GLfloat* look) {
+    GLfloat Z[3] = { look[0] - pos[0], look[1] - pos[1], 0 }; //, look[2] - pos[2]};
+    normalize(Z);
+    GLfloat newPos[3];
+    newPos[0] = pos[0] + Z[0] * forwardV - Z[1] * leftRightV;
+    newPos[1] = pos[1] + Z[1] * forwardV + Z[0] * leftRightV;
+    newPos[2] = pos[2] + upDownV;
+
+    bool validMove = true;
+    if (validMove) {
+        pos[0] = newPos[0];
+        pos[1] = newPos[1];
+        pos[2] = newPos[2];
+    }
+    //facing += rotationV;        // need to include a timestamp to handle fps correctly
 }
 
 /*
@@ -228,6 +264,9 @@ void update_pos(const GLfloat* look) {
             break;
         case Falling:
             update_pos_falling(look);
+            break;
+        case Flying:
+            update_pos_flying(look);
             break;
         default:
             break;
@@ -250,29 +289,33 @@ static void update_facing(GLfloat elevationDelta, GLfloat rotationDelta) {
 }
 
 
-void update_player_motion(int forwardMotion, int sidewaysMotion, bool tryingToJump) {
-    if (gPlayerCanMove) {
+void update_player_motion(int forwardMotion, int sidewaysMotion, int upMotion) {
+    const double maxSpeed = 0.035;
+    const double speeds[4] = { 0, 1, 1 / sqrt(2), 1 / sqrt(3) };
 
-        if (tryingToJump) {
-            if (playerState == OnGround) {
+    switch (playerState) {
+        case OnGround:
+            if (upMotion > 0) {
                 playerState = Falling;
                 upDownV += 0.05f;
             }
-        }
-    }
-
-    // with this outside of the gPlayerCanMove check, if a key is pressed, planar motion stops
-    // if the player is in air, that motion will continue.  Might change how motion works in the future.
-    if (forwardMotion == 0 && sidewaysMotion == 0) {
-        forwardV = 0;
-        leftRightV = 0;
-    } else {
-        // normalize so that our speed doesn't increase with diagonal movement
-        forwardV = forwardMotion * 0.02f;
-        leftRightV = sidewaysMotion * 0.02f;
-        float d = 0.035f / (sqrt(sqr(forwardV) + sqr(leftRightV)));
-        forwardV *= d;
-        leftRightV *= d;
+        case Falling: {
+            int speed = abs(forwardMotion) + abs(sidewaysMotion);
+            double d = maxSpeed * speeds[speed];
+            forwardV = forwardMotion * d;
+            leftRightV = sidewaysMotion * d;
+            }
+            break;
+        case Flying: {
+            int speed = abs(forwardMotion) + abs(sidewaysMotion) + abs(upMotion);
+            double d = maxSpeed * speeds[speed];
+            forwardV = forwardMotion * d;
+            leftRightV = sidewaysMotion * d;
+            upDownV = upMotion * d;
+            }
+            break;
+        default:
+            break;
     }
 }
 
@@ -291,12 +334,14 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     // check for moving keys, if in a moving-mode
     int forwardMotion=0;
     int sidewaysMotion=0;
-    bool tryingToJump = false;
+    int upMotion = 0;
 
     bool forwardKey = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
     bool backKey = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
     bool leftKey = glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS;
     bool rightKey = glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS;
+    bool jumpKey = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+    bool diveKey = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
 
     if (forwardKey && !backKey) {
         forwardMotion = 1;
@@ -309,11 +354,20 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
         sidewaysMotion = -1;
     }
 
-    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
-        tryingToJump = true;
+    if (jumpKey && !diveKey) {
+        upMotion = 1;
+    } else if (diveKey && !jumpKey) {
+        upMotion = -1;
+    }
+    if (key == GLFW_KEY_F && action == GLFW_PRESS) {
+        if (playerState == Flying) {
+            playerState = Falling;
+        } else {
+            playerState = Flying;
+        }
     }
 
-    update_player_motion(forwardMotion, sidewaysMotion, tryingToJump);
+    update_player_motion(forwardMotion, sidewaysMotion, upMotion);
 }
 
 static double xposPrev=0, yposPrev = 0;
