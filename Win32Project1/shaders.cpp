@@ -44,9 +44,11 @@ static GLuint LoadShaders(const char * vertex_file_path, const char * fragment_f
     // Check Vertex Shader
     glGetShaderiv(VertexShaderID, GL_COMPILE_STATUS, &Result);
     glGetShaderiv(VertexShaderID, GL_INFO_LOG_LENGTH, &InfoLogLength);
-    std::vector<char> VertexShaderErrorMessage(InfoLogLength);
-    glGetShaderInfoLog(VertexShaderID, InfoLogLength, NULL, &VertexShaderErrorMessage[0]);
-    fprintf(stdout, "%s\n", &VertexShaderErrorMessage[0]);
+    if (InfoLogLength > 0) {
+        std::vector<char> VertexShaderErrorMessage(InfoLogLength);
+        glGetShaderInfoLog(VertexShaderID, InfoLogLength, NULL, &VertexShaderErrorMessage[0]);
+        fprintf(stdout, "%s\n", &VertexShaderErrorMessage[0]);
+    }
     
     // Compile Fragment Shader
     printf("Compiling shader : %s\n", fragment_file_path);
@@ -57,9 +59,11 @@ static GLuint LoadShaders(const char * vertex_file_path, const char * fragment_f
     // Check Fragment Shader
     glGetShaderiv(FragmentShaderID, GL_COMPILE_STATUS, &Result);
     glGetShaderiv(FragmentShaderID, GL_INFO_LOG_LENGTH, &InfoLogLength);
-    std::vector<char> FragmentShaderErrorMessage(InfoLogLength);
-    glGetShaderInfoLog(FragmentShaderID, InfoLogLength, NULL, &FragmentShaderErrorMessage[0]);
-    std::cout << &FragmentShaderErrorMessage[0] << std::endl;
+    if (InfoLogLength > 0) {
+        std::vector<char> FragmentShaderErrorMessage(InfoLogLength);
+        glGetShaderInfoLog(FragmentShaderID, InfoLogLength, NULL, &FragmentShaderErrorMessage[0]);
+        std::cout << &FragmentShaderErrorMessage[0] << std::endl;
+    }
     
     // Link the program
     fprintf(stdout, "Linking program\n");
@@ -71,9 +75,11 @@ static GLuint LoadShaders(const char * vertex_file_path, const char * fragment_f
     // Check the program
     glGetProgramiv(ProgramID, GL_LINK_STATUS, &Result);
     glGetProgramiv(ProgramID, GL_INFO_LOG_LENGTH, &InfoLogLength);
-    std::vector<char> ProgramErrorMessage( max(InfoLogLength, int(1)) );
-    glGetProgramInfoLog(ProgramID, InfoLogLength, NULL, &ProgramErrorMessage[0]);
-    std::cout << &ProgramErrorMessage[0] << std::endl;
+    if (InfoLogLength > 0) {
+        std::vector<char> ProgramErrorMessage(max(InfoLogLength, int(1)));
+        glGetProgramInfoLog(ProgramID, InfoLogLength, NULL, &ProgramErrorMessage[0]);
+        std::cout << &ProgramErrorMessage[0] << std::endl;
+    }
 
     glDeleteShader(VertexShaderID);
     glDeleteShader(FragmentShaderID);

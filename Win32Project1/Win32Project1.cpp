@@ -19,6 +19,13 @@
 
 const GLfloat PLAYER_HEIGHT=1.5f;
 
+enum PlayerMovementState {
+    OnGround,
+    Falling,
+    Flying,
+    Swimming,
+};
+
 GLfloat upDownV = 0;
 GLfloat leftRightV = 0; //left neg, right pos
 GLfloat forwardV = 0, rotationV = 0;
@@ -26,8 +33,12 @@ GLfloat pos[3] = {0,0,1.2f};
 GLfloat eyePos[3] = {0,0,1.2f+PLAYER_HEIGHT};
 GLfloat facing = 45 * 3.14159f / 180;
 GLfloat facingUpDown = -45 * 3.14159f / 180;
-static bool onGround = true;
+static PlayerMovementState playerState = Falling;
 bool gPlayerCanMove=true;
+
+const GLfloat GRAVITY = -0.001f;
+const GLfloat MAX_STEP_HEIGHT = 0.55f;
+
 
 #define DEPTH 15
 #define ROWS 15
@@ -134,58 +145,137 @@ void perspective(GLfloat angle, GLfloat ratio, GLfloat n, GLfloat f, float *p) {
     p[15] = 0;
 }
 
-#define GRAVITY -0.0004f
-#define MAX_STEP_HEIGHT 0.05f
-/*
-*   First calculate where we are, then the direction we are looking from that position
-*/
-void update_pos(void) {
-}
+void update_pos_onground(const GLfloat* look) {
+    // estimate a new position for the player
+    // newpos is based on:
+    //   if player has a velocity, reduce it by the blocktype
+    // does newpos put player into a new tile?  if so:
+    //   would he now be falling?
+    //   is the height difference acceptable?
+    // if still onground, update velocity by keys pressed
+    // accept newpos if it is valid
 
-void update_eye(GLfloat *look) {
-    GLfloat Z[3] = {look[0] - pos[0], look[1] - pos[1], 0}; //, look[2] - pos[2]};
+    GLfloat Z[3] = { look[0] - pos[0], look[1] - pos[1], 0 }; //, look[2] - pos[2]};
     normalize(Z);
     GLfloat newPos[3];
     newPos[0] = pos[0] + Z[0] * forwardV - Z[1] * leftRightV;
     newPos[1] = pos[1] + Z[1] * forwardV + Z[0] * leftRightV;
     newPos[2] = pos[2] + upDownV;
 
-    bool validMove=false;
+    bool validMove = false;
     // check falling off grid
-    if ((newPos[0] <= -1) || (newPos[0] >= 1) || (newPos[1] <= -1) || (newPos[1] >= 1)) {
-        onGround = false;
-        validMove = true;
+    if ((newPos[0] <= 0) || (newPos[0] >= 10) || (newPos[1] <= 0) || (newPos[1] >= 10)) {
+        //playerState = Falling;
+        //validMove = true;
     } else {
         //printf("%d, %d\n", (int)(newPos[0]*5 + 5), (int)(newPos[1]*5 + 5));
-        float groundHeight = heightMap[0][(int)(newPos[0]*5 + 5)][(int)(newPos[1]*5 + 5)];
+        float groundHeight = heightMap[0][(int)(newPos[0])][(int)(newPos[1])];
         float myHeight = newPos[2];
-        if (myHeight - groundHeight <= MAX_STEP_HEIGHT) {
+        if (groundHeight - myHeight <= MAX_STEP_HEIGHT) {
             validMove = true;
-            if (newPos[2] < groundHeight + 0.2f) {
-                newPos[2] = groundHeight + 0.2f;
+            if (newPos[2] < groundHeight) {
+                newPos[2] = groundHeight;
                 upDownV = 0;
-                onGround = true;
-            } else if (newPos[2] > groundHeight + 0.2f) {
-                onGround = false;
+                playerState = OnGround;
+            } else if (newPos[2] > groundHeight) {
+                playerState = Falling;
             }
         }
     }
 
-    if (!onGround) {
-        upDownV += GRAVITY;
-    }
 
     if (validMove) {
         pos[0] = newPos[0];
         pos[1] = newPos[1];
         pos[2] = newPos[2];
     }
-
     facing += rotationV;        // need to include a timestamp to handle fps correctly
+}
+
+void update_pos_falling(const GLfloat* look) {
+    upDownV += GRAVITY;
+
+    GLfloat Z[3] = { look[0] - pos[0], look[1] - pos[1], 0 }; //, look[2] - pos[2]};
+    normalize(Z);
+    GLfloat newPos[3];
+    newPos[0] = pos[0] + Z[0] * forwardV - Z[1] * leftRightV;
+    newPos[1] = pos[1] + Z[1] * forwardV + Z[0] * leftRightV;
+    newPos[2] = pos[2] + upDownV;
+
+    float groundHeight = heightMap[0][(int)(newPos[0])][(int)(newPos[1])];
+    if (newPos[2] < groundHeight) {
+        newPos[2] = groundHeight;
+        upDownV = 0;
+        playerState = OnGround;
+    }
+
+    bool validMove = true;
+    if (validMove) {
+        pos[0] = newPos[0];
+        pos[1] = newPos[1];
+        pos[2] = newPos[2];
+    }
+    facing += rotationV;        // need to include a timestamp to handle fps correctly
+}
+
+/*
+*   First calculate where we are, then the direction we are looking from that position
+*/
+void update_pos(const GLfloat* look) {
+    switch (playerState) {
+        case OnGround:
+            update_pos_onground(look);
+            break;
+        case Falling:
+            update_pos_falling(look);
+            break;
+        default:
+            break;
+    }
+}
+
+
+void get_eye(GLfloat *look) {
     look[0] = pos[0] + cosf(facingUpDown) * cosf(facing);
     look[1] = pos[1] + cosf(facingUpDown) * sinf(facing);
-    look[2] = pos[2] + sinf(facingUpDown);
+    look[2] = pos[2] + sinf(facingUpDown) + PLAYER_HEIGHT;
 }
+
+static void update_facing(GLfloat elevationDelta, GLfloat rotationDelta) {
+    facingUpDown -= elevationDelta;
+    facingUpDown = max(-3.14159f / 2, facingUpDown);
+    facingUpDown = min(3.14159f / 2, facingUpDown);
+
+    facing -= rotationDelta;
+}
+
+
+void update_player_motion(int forwardMotion, int sidewaysMotion, bool tryingToJump) {
+    if (gPlayerCanMove) {
+
+        if (tryingToJump) {
+            if (playerState == OnGround) {
+                playerState = Falling;
+                upDownV += 0.05f;
+            }
+        }
+    }
+
+    // with this outside of the gPlayerCanMove check, if a key is pressed, planar motion stops
+    // if the player is in air, that motion will continue.  Might change how motion works in the future.
+    if (forwardMotion == 0 && sidewaysMotion == 0) {
+        forwardV = 0;
+        leftRightV = 0;
+    } else {
+        // normalize so that our speed doesn't increase with diagonal movement
+        forwardV = forwardMotion * 0.02f;
+        leftRightV = sidewaysMotion * 0.02f;
+        float d = 0.035f / (sqrt(sqr(forwardV) + sqr(leftRightV)));
+        forwardV *= d;
+        leftRightV *= d;
+    }
+}
+
 
 /*======================================================================*
  * glfw interface code
@@ -195,68 +285,45 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     // first check for escape
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, GL_TRUE);
+        return;
 	}
 
     // check for moving keys, if in a moving-mode
     int forwardMotion=0;
     int sidewaysMotion=0;
-    if (gPlayerCanMove) {
-        bool forwardKey = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
-        bool backKey = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
-        bool leftKey = glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS;
-        bool rightKey = glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS;
+    bool tryingToJump = false;
 
-        if (forwardKey && !backKey) {
-            forwardMotion = 1;
-        } else if (backKey && !forwardKey) {
-            forwardMotion = -1;
-        }
-        if (leftKey && !rightKey) {
-            sidewaysMotion = 1;
-        } else if (rightKey && !leftKey) {
-            sidewaysMotion = -1;
-        }
+    bool forwardKey = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
+    bool backKey = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
+    bool leftKey = glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS;
+    bool rightKey = glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS;
 
-        if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
-            if (onGround) {
-                onGround = false;
-                upDownV += 0.01f;
-            }
-        }
+    if (forwardKey && !backKey) {
+        forwardMotion = 1;
+    } else if (backKey && !forwardKey) {
+        forwardMotion = -1;
+    }
+    if (leftKey && !rightKey) {
+        sidewaysMotion = 1;
+    } else if (rightKey && !leftKey) {
+        sidewaysMotion = -1;
     }
 
-    // with this outside of the gPlayerCanMove check, if a key is pressed, planar motion stops
-    // if the player is in air, that motion will continue.  Might change how motion works in the future.
-    if (forwardMotion == 0 && sidewaysMotion==0) {
-        forwardV = 0;
-        leftRightV = 0;
-    } else {
-        // normalize so that our speed doesn't increase with diagonal movement
-        forwardV = forwardMotion * 0.02f;
-        leftRightV = sidewaysMotion * 0.02f;
-        float d = 0.007f / (sqrt(sqr(forwardV) + sqr(leftRightV)));
-        forwardV *= d;
-        leftRightV *= d;
+    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
+        tryingToJump = true;
     }
+
+    update_player_motion(forwardMotion, sidewaysMotion, tryingToJump);
 }
 
 static double xposPrev=0, yposPrev = 0;
+const GLfloat SCALED_MOUSE_MOVEMENT = 0.001f;
 static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
-    static bool called = false;
-    if (!called) {
-        called = true;
-        yposPrev = ypos;
-        xposPrev = xpos;
-        return;
-    }
-
-    facingUpDown -= (GLfloat)(ypos - yposPrev) * 0.001f;
-    facingUpDown = max(-3.14159f/2, facingUpDown);
-    facingUpDown = min(3.14159f/2, facingUpDown);
+    GLfloat elevationDelta = (GLfloat)(ypos - yposPrev) * SCALED_MOUSE_MOVEMENT;
+    GLfloat rotationDelta = (GLfloat)(xpos - xposPrev) * SCALED_MOUSE_MOVEMENT;
     yposPrev = ypos;
-
-    facing -= (GLfloat)(xpos - xposPrev) * 0.001f;
     xposPrev = xpos;
+    update_facing(elevationDelta, rotationDelta);
 }
 
 static void error_callback(int error, const char* description) {
@@ -270,6 +337,9 @@ static void error_callback(int error, const char* description) {
 
 int main( void )
 {
+    heightMap[0][1][1] = 1.0;
+
+
     glfwSetErrorCallback(error_callback);
     if (!glfwInit()) {
         exit(EXIT_FAILURE);
@@ -294,7 +364,7 @@ int main( void )
         exit(EXIT_FAILURE);
     }
 
-#if 1
+#if 0
     srand((unsigned int)time(NULL));
     for (int j=0; j<10; ++j) {
         for (int i=0; i<10; ++i) {
@@ -314,32 +384,32 @@ int main( void )
     GLfloat g_vertex_buffer_data[400*2*3];
     for (int j=0; j<10; j++) {
         for (int i=0; i<10; ++i) {
-            g_vertex_buffer_data[240*j + i*24] = -1 + i * 0.2f;
-            g_vertex_buffer_data[240*j + i*24+1] = -1 + j * 0.2f;
+            g_vertex_buffer_data[240*j + i*24] = (GLfloat)i;
+            g_vertex_buffer_data[240*j + i*24+1] = (GLfloat)j;
             g_vertex_buffer_data[240*j + i*24+2] = heightMap[0][i][j];
-            g_vertex_buffer_data[240*j + i*24+3] = -1 + (i+1) * 0.2f;
-            g_vertex_buffer_data[240*j + i*24+4] = -1 + j * 0.2f;
+            g_vertex_buffer_data[240*j + i*24+3] = (GLfloat)i+1;
+            g_vertex_buffer_data[240*j + i*24+4] = (GLfloat)j;
             g_vertex_buffer_data[240*j + i*24+5] = heightMap[0][i][j];
 
-            g_vertex_buffer_data[240*j + i*24+6] = -1 + (i+1) * 0.2f;
-            g_vertex_buffer_data[240*j + i*24+7] = -1 + j * 0.2f;
+            g_vertex_buffer_data[240*j + i*24+6] = (GLfloat)i+1;
+            g_vertex_buffer_data[240*j + i*24+7] = (GLfloat)j;
             g_vertex_buffer_data[240*j + i*24+8] = heightMap[0][i][j];
-            g_vertex_buffer_data[240*j + i*24+9] = -1 + (i+1) * 0.2f;
-            g_vertex_buffer_data[240*j + i*24+10] = -1 + (j+1) * 0.2f;
+            g_vertex_buffer_data[240*j + i*24+9] = (GLfloat)i+1;
+            g_vertex_buffer_data[240*j + i*24+10] = (GLfloat)j+1;
             g_vertex_buffer_data[240*j + i*24+11] = heightMap[0][i][j];
 
-            g_vertex_buffer_data[240*j + i*24+12] = -1 + (i+1) * 0.2f;
-            g_vertex_buffer_data[240*j + i*24+13] = -1 + (j+1) * 0.2f;
+            g_vertex_buffer_data[240*j + i*24+12] = (GLfloat)i+1;
+            g_vertex_buffer_data[240*j + i*24+13] = (GLfloat)j+1;
             g_vertex_buffer_data[240*j + i*24+14] = heightMap[0][i][j];
-            g_vertex_buffer_data[240*j + i*24+15] = -1 + i * 0.2f;
-            g_vertex_buffer_data[240*j + i*24+16] = -1 + (j+1) * 0.2f;
+            g_vertex_buffer_data[240*j + i*24+15] = (GLfloat)i;
+            g_vertex_buffer_data[240*j + i*24+16] = (GLfloat)j+1;
             g_vertex_buffer_data[240*j + i*24+17] = heightMap[0][i][j];
 
-            g_vertex_buffer_data[240*j + i*24+18] = -1 + i * 0.2f;
-            g_vertex_buffer_data[240*j + i*24+19] = -1 + (j+1) * 0.2f;
+            g_vertex_buffer_data[240*j + i*24+18] = (GLfloat)i;
+            g_vertex_buffer_data[240*j + i*24+19] = (GLfloat)j+1;
             g_vertex_buffer_data[240*j + i*24+20] = heightMap[0][i][j];
-            g_vertex_buffer_data[240*j + i*24+21] = -1 + i * 0.2f;
-            g_vertex_buffer_data[240*j + i*24+22] = -1 + j * 0.2f;
+            g_vertex_buffer_data[240*j + i*24+21] = (GLfloat)i;
+            g_vertex_buffer_data[240*j + i*24+22] = (GLfloat)j;
             g_vertex_buffer_data[240*j + i*24+23] = heightMap[0][i][j];
         }
     }
@@ -411,12 +481,12 @@ int main( void )
     // a box of 12 lines, 2 vertex per line, 3 values per vertex
     GLfloat g_peg_buffer_data[6];
     g_peg_buffer_data[0] = 0;
-    g_peg_buffer_data[1] = -0.1f;
-    g_peg_buffer_data[2] = 0.1f;
+    g_peg_buffer_data[1] = -1;
+    g_peg_buffer_data[2] = 0.5f;
 
     g_peg_buffer_data[3] = 0;
-    g_peg_buffer_data[4] = 0.1f;
-    g_peg_buffer_data[5] = 0.1f;
+    g_peg_buffer_data[4] = 1;
+    g_peg_buffer_data[5] = 0.5f;
 
     // This will identify our vertex buffer
     GLuint pegVertexbuffer;
@@ -446,6 +516,7 @@ int main( void )
     glfwSetKeyCallback(window, key_callback);
     glfwSetCursorPosCallback(window, cursor_pos_callback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwGetCursorPos(window, &xposPrev, &yposPrev);
 
     TextureShader textureShader = TextureShader( "..\\shaders\\SimpleTextureShader.vert", "..\\shaders\\SimpleTextureShader.frag" );
     textureShader.use();
@@ -473,8 +544,10 @@ int main( void )
         glViewport(0, 0, width, height);
         GLfloat MVP[16];
         GLfloat look[3];
-        update_eye(look);
-        lookAt(pos[0],pos[1],pos[2]+0.1f,  look[0], look[1], look[2]+0.1f,  0,0,1, view);
+        get_eye(look);  // get eye so we know which direction forward is
+        update_pos(look);
+        get_eye(look);  // get the eye in its new position, after movement has happened
+        lookAt(pos[0],pos[1],pos[2]+PLAYER_HEIGHT,  look[0], look[1], look[2],  0,0,1, view);
         perspective(45, ratio, 0.1f, 100.0f, projection);
         matmul(projection, view, MVP);
 
@@ -491,7 +564,7 @@ int main( void )
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);
 
-        // draw a spinning green line, just to show we are alive :)
+        // draw a spinning red line, just to show we are alive :)
         fixedColorShader.use();
         #define SCALE  0.03f
         GLfloat model[16] = {cosf(t*SCALE),sinf(t*SCALE),0,0, -sinf(t*SCALE),cosf(t*SCALE),0,0, 0,0,1,0, 0.9f,0.9f,0,1};
@@ -504,6 +577,7 @@ int main( void )
         glDrawArrays(GL_LINES, 0, 2); // 2 vertex per line
         glDisableVertexAttribArray(0);
 
+#if 0
         // draw a grey box always in front
         glDisable(GL_DEPTH_TEST);
         //glDisable(GL_CULL_FACE);
@@ -528,6 +602,7 @@ int main( void )
         //glEnable(GL_CULL_FACE);
         //glEnable(GL_TEXTURE_2D);
         //glEnable(GL_LIGHTING);
+#endif
 
         glfwSwapBuffers(window);
         glfwPollEvents();
