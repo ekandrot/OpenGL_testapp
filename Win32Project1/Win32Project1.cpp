@@ -14,8 +14,26 @@
 #define GLFW_INCLUDE_GLEXT
 #include <GLFW/glfw3.h>
 
+//#############################################################################
+
 #define max(a, b) ( (a) < (b) ? (b) : (a) )
 #define min(a, b) ( (a) > (b) ? (b) : (a) )
+
+//#############################################################################
+
+const GLfloat GRAVITY = -0.001f;
+const GLfloat MAX_STEP_HEIGHT = 0.55f;
+
+//#############################################################################
+
+enum MovementState {
+    OnGround,
+    Falling,
+    Flying,
+    Swimming,
+};
+
+//#############################################################################
 
 struct Cube {
     double _pos[3];
@@ -29,21 +47,34 @@ struct Cube {
     }
 };
 
-
+//#############################################################################
 
 struct Player {
 
+    Player();
+
+    // position and view within the world
+    double _eyeHeight = 1.5f;
+    double _pos[3] = { 5,5,1.2 };
+    double facing = 45 * 3.14159f / 180;    // radians left/right around player axis
+    double facingUpDown = -45 * 3.14159f / 180;    // radians up/down with player eyes as level zero
+
+    // velocities
+    double upV = 0; // negative is down
+    double rightV = 0;  // negative is left
+    double forwardV = 0; // negative is backwards
+    MovementState _movementState = Flying;
 };
+
+
+static Player player;
+
+Player::Player() {
+}
 
 
 const GLfloat PLAYER_HEIGHT=1.5f;
 
-enum PlayerMovementState {
-    OnGround,
-    Falling,
-    Flying,
-    Swimming,
-};
 
 GLfloat upDownV = 0;
 GLfloat leftRightV = 0; //left neg, right pos
@@ -52,11 +83,8 @@ GLfloat pos[3] = {5,5,1.2f};
 GLfloat eyePos[3] = {5,5,1.2f+PLAYER_HEIGHT};
 GLfloat facing = 45 * 3.14159f / 180;
 GLfloat facingUpDown = -45 * 3.14159f / 180;
-static PlayerMovementState playerState = Flying;
+static MovementState playerState = Flying;
 bool gPlayerCanMove=true;
-
-const GLfloat GRAVITY = -0.001f;
-const GLfloat MAX_STEP_HEIGHT = 0.55f;
 
 
 #define DEPTH 15
@@ -427,6 +455,39 @@ int main( void )
         }
     }
 #endif
+    GLuint tempBufID;
+
+    // crosshair texture
+    GLuint CrosshairsID;
+    glGenVertexArrays(1, &CrosshairsID);
+    glBindVertexArray(CrosshairsID);
+    const GLfloat quadCenter[] = {
+        -0.1f, -0.1f, 0.0f,   0,0,
+        0.1f, -0.1f, 0.0f,    1,0,
+        0.1f, 0.1f, 0.0f,     1,1,
+        -0.1f, 0.1f, 0.0f,    0,1
+    };
+    glGenBuffers(1, &tempBufID);
+    glBindBuffer(GL_ARRAY_BUFFER, tempBufID);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadCenter), quadCenter, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(
+        0,  // attribute 0. No particular reason for 0, but must match the layout in the shader.
+        3,  // size
+        GL_FLOAT,   // type
+        GL_FALSE,   // normalized?
+        5 * sizeof(GLfloat),  // stride
+        (void*)0 // array buffer offset
+    );
+
+    glVertexAttribPointer(
+        1,
+        2,  // size
+        GL_FLOAT,   // type
+        GL_FALSE,   // normalized?
+        5 * sizeof(GLfloat),  // stride
+        (void*)(3 * sizeof(GLfloat)) // array buffer offset
+    );
 
 
     GLuint CubeID;
@@ -437,7 +498,10 @@ int main( void )
         1,0,1, 0,0,  0,0,1, 1,0,  1,0,0, 0,1,  0,0,0, 1,1 };
     GLint cubeIndexes[8 * 4] = { 0,1,2,3, 1,4,5,2, 4,6,7,5, 6,0,3,7, 2,5,8,9, 1,4,10,11 };
 
-    GLuint tempBufID;
+//    for (int i = 0; i < 12 * 5; ++i) {
+//        cubeData[i] *= 0.5;
+//    }
+
     glGenBuffers(1, &tempBufID);
     glBindBuffer(GL_ARRAY_BUFFER, tempBufID);
     glBufferData(GL_ARRAY_BUFFER, sizeof(cubeData), cubeData, GL_STATIC_DRAW);
@@ -591,6 +655,7 @@ int main( void )
 
     Texture grass1Tex = Texture(std::wstring(L"..\\textures\\Grass_3.png"));
     Texture brick1Tex = Texture(std::wstring(L"..\\textures\\brick_0.jpg"));
+    Texture crosshairs1Tex = Texture(std::wstring(L"..\\textures\\crosshairs_0.png"));
 
     FixedColorShader fixedColorShader = FixedColorShader( "..\\shaders\\FixedColorShader.vert", "..\\shaders\\FixedColorShader.frag" );
     fixedColorShader.use();
@@ -603,8 +668,16 @@ int main( void )
     GLfloat grey[] = {0.5f,0.5f,0.5f};
 
    /* Main loop */
+    clock_t startTime = clock(); //Start timer
     int t = 0;
     while (!glfwWindowShouldClose(window)) {
+        clock_t testTime = clock();
+        clock_t timePassed = testTime - startTime;
+        double secondsPassed = timePassed / (double)CLOCKS_PER_SEC;
+//        std::cout << (1.0 / secondsPassed) << std::endl;
+        startTime = testTime;
+
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         float ratio;
         int width, height;
@@ -635,19 +708,36 @@ int main( void )
 
         // draw a test cube
         {
+            glBindVertexArray(CubeID);
+            glEnableVertexAttribArray(0);
+            glEnableVertexAttribArray(1);
             textureShader.use();
             brick1Tex.bind();
             glActiveTexture(GL_TEXTURE0);
             glUniform1i(textureShader.samplerID, 0);
-            GLfloat model[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 3,4,2,1 };
+            GLfloat model[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 3,4,10,1 };
             GLfloat lineMVP[16];
             matmul(MVP, model, lineMVP);
-            glUniformMatrix4fv(fixedColorShader.matrixID, 1, GL_FALSE, lineMVP);
-            glBindVertexArray(CubeID);
-            glUniform3fv(fixedColorShader.colorID, 1, red);
-            glEnableVertexAttribArray(0);
-            glEnableVertexAttribArray(1);
-            glDrawElements(GL_QUADS, 24, GL_UNSIGNED_INT, nullptr); // 4 vertex per quad
+
+            static int SUN_SIZE = 1;
+
+            SUN_SIZE = abs(100*sin(t * 0.01));
+
+            for (int z = -10; z <= 10; z++) {
+                for (int y = -10; y <= 10; y++) {
+                    for (int x = -10; x <= 10; x++) {
+                        if (x*x + y*y + z*z > SUN_SIZE) {
+                            continue;
+                        }
+                        GLfloat moveOneMat[16] = { 0.25,0,0,0, 0,0.25,0,0, 0,0,0.25,0, x*0.25,y*0.25,z*0.25,1 };
+                        GLfloat outputMat[16];
+                        matmul(lineMVP, moveOneMat, outputMat);
+                        glUniformMatrix4fv(textureShader.matrixID, 1, GL_FALSE, outputMat);
+                        glDrawElements(GL_QUADS, 24, GL_UNSIGNED_INT, nullptr); // 4 vertex per quad
+                    }
+                }
+            }
+
             glDisableVertexAttribArray(0);
             glDisableVertexAttribArray(1);
         }
@@ -671,26 +761,43 @@ int main( void )
         //glDisable(GL_CULL_FACE);
         //glDisable(GL_TEXTURE_2D);
         //glDisable(GL_LIGHTING);
+        glBindVertexArray(0);
+        glEnableClientState(GL_VERTEX_ARRAY);
 
-        const GLfloat quadVertices[] = { -0.5f, -0.5f, 0.0f, 
+        const GLfloat quadVertices[] = {
+            -0.5f, -0.5f, 0.0f, 
             0.5f, -0.5f, 0.0f, 
             0.5f,-0.75f, 0.0f,
             -0.5f,-0.75f, 0.0f
         }; 
         fixedColorShader.use();
-        glBindVertexArray(0);
         glUniformMatrix4fv(fixedColorShader.matrixID, 1, GL_FALSE, identity);
         glUniform3fv(fixedColorShader.colorID, 1, grey);
         glVertexPointer(3, GL_FLOAT, 0, quadVertices);
-        glEnableClientState(GL_VERTEX_ARRAY);
         glDrawArrays(GL_QUADS, 0, 4);
-        glDisableClientState(GL_VERTEX_ARRAY);
 
-        glEnable(GL_DEPTH_TEST);
+        glDisableClientState(GL_VERTEX_ARRAY);
         //glEnable(GL_CULL_FACE);
         //glEnable(GL_TEXTURE_2D);
         //glEnable(GL_LIGHTING);
 #endif
+        if (1) {
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            textureShader.use();
+            crosshairs1Tex.bind();
+            glActiveTexture(GL_TEXTURE0);
+            glUniform1i(textureShader.samplerID, 0);
+            glUniformMatrix4fv(textureShader.matrixID, 1, GL_FALSE, identity);
+            glBindVertexArray(CrosshairsID);
+            glEnableVertexAttribArray(0);
+            glEnableVertexAttribArray(1);
+            glDrawArrays(GL_QUADS, 0, 4); // 4 vertex per square
+            glDisableVertexAttribArray(0);
+            glDisableVertexAttribArray(1);
+            glDisable(GL_BLEND);
+        }
+        glEnable(GL_DEPTH_TEST);
 
         glfwSwapBuffers(window);
         glfwPollEvents();

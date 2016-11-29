@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{300d9967-f3d0-4d33-8358-e45a36e585f7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
@@ -46,11 +49,23 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\shaders\FixedColorShader.frag" />
-    <None Include="..\shaders\FixedColorShader.vert" />
-    <None Include="..\shaders\SimpleTextureShader.vert" />
-    <None Include="..\shaders\SimpleTextureShader.frag" />
-    <None Include="..\shaders\ComboTextureShader.frag" />
-    <None Include="..\shaders\ComboTextureShader.vert" />
+    <None Include="..\shaders\ComboTextureShader.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\ComboTextureShader.vert">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\FixedColorShader.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\SimpleTextureShader.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\SimpleTextureShader.vert">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\FixedColorShader.vert">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

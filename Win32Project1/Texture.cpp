@@ -30,10 +30,10 @@ static WICPixelFormatGUID GetImageFromFile(LPCWSTR file, IWICBitmap** bitmap) {
     decoder->GetFrame(0, &frame);
     gFactory->CreateFormatConverter(&converter);
     converter->Initialize(frame, GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone, NULL, 0.0, WICBitmapPaletteTypeCustom);
-    gFactory->CreateBitmapFromSource(frame, WICBitmapNoCache, bitmap);
+    gFactory->CreateBitmapFromSource(converter, WICBitmapNoCache, bitmap);
 
     WICPixelFormatGUID  fmt;
-    frame->GetPixelFormat(&fmt);
+    converter->GetPixelFormat(&fmt);
 
     //SafeRelease(&factory);
     SafeRelease(&converter);
@@ -58,6 +58,8 @@ GLuint Create(const std::wstring& fileName) {
     GLenum  textureFormat;
     if (fmt == GUID_WICPixelFormat24bppBGR) {
         textureFormat = GL_BGR;
+    } else if (fmt == GUID_WICPixelFormat32bppBGRA) {
+        textureFormat = GL_BGRA;
     } else {
         textureFormat = GL_RED;
         printf("*** unknown texture format for %s ***", file);
@@ -76,11 +78,11 @@ GLuint Create(const std::wstring& fileName) {
     glGenTextures(1, &glid);
     glBindTexture(GL_TEXTURE_2D, glid);
     gluBuild2DMipmaps(GL_TEXTURE_2D,
-                        GL_RGB,
-                        r.Width, r.Height,
-                        GL_RGB,
-                        GL_UNSIGNED_BYTE,
-                        data);
+        GL_RGBA8,
+        r.Width, r.Height,
+        textureFormat,
+        GL_UNSIGNED_BYTE,
+        data);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
