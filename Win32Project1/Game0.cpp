@@ -30,6 +30,16 @@ enum MovementState {
 
 //#############################################################################
 
+enum Sides {
+    N = 0, E, S, W, U, D,
+    Size
+};
+
+
+uint32_t grid[10][10][Sides::Size];
+
+//#############################################################################
+
 struct Player {
 
     Player();
@@ -39,7 +49,7 @@ struct Player {
 
     void update_gaze(GLfloat elevationDelta, GLfloat rotationDelta);
 
-    const float PLAYER_HEIGHT = 1.5f;
+    const float PLAYER_HEIGHT = 0.75f;
     
     // position and view within the world
     float _eyeHeight = 1.5f;
@@ -210,7 +220,7 @@ void Scene::render(const float *pos, const float *look) {
     perspective(45, _ratio, 0.1f, 100.0f, projection);
     matmul(projection, view, MVP);
 
-    // draw a test square
+    // draw a floor squares
     {
         glBindVertexArray(SquareTexturedVA);
         glEnableVertexAttribArray(0);
@@ -220,10 +230,33 @@ void Scene::render(const float *pos, const float *look) {
         glActiveTexture(GL_TEXTURE0);
         glUniform1i(textureShader->samplerID, 0);
         GLfloat model[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, -0.5,-0.5,0,1 };
-        GLfloat lineMVP[16];
-        matmul(MVP, model, lineMVP);
-        glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, lineMVP);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
+        GLfloat squareMVP[16];
+        matmul(MVP, model, squareMVP);
+        for (int y = 0; y < 10; ++y) {
+            for (int x = 0; x < 10; ++x) {
+                if (grid[y][x][Sides::D] != 0) {
+                    GLfloat finalMat[16];
+                    GLfloat locationMat[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, (GLfloat)x,(GLfloat)y,0,1 };
+                    matmul(squareMVP, locationMat, finalMat);
+                    glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
+                    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
+                }
+                if (grid[y][x][Sides::S] != 0) {
+                    GLfloat finalMat[16];
+                    GLfloat locationMat[16] = { 1,0,0,0, 0,0,1,0, 0,0,1,0, (GLfloat)x,(GLfloat)y,0,1 };
+                    matmul(squareMVP, locationMat, finalMat);
+                    glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
+                    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
+                }
+                if (grid[y][x][Sides::W] != 0) {
+                    GLfloat finalMat[16];
+                    GLfloat locationMat[16] = { 1,0,1,0, 0,1,0,0, 0,0,1,0, (GLfloat)x,(GLfloat)y,0,1 };
+                    matmul(squareMVP, locationMat, finalMat);
+                    glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
+                    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
+                }
+            }
+        }
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);
     }
@@ -236,10 +269,10 @@ void init_opengl_objects() {
 //    GLuint SquareTexturedVA;
     glGenVertexArrays(1, &SquareTexturedVA);
     glBindVertexArray(SquareTexturedVA);
-    GLfloat squareData[4 * 2*2] = {
+    GLfloat squareData[4 * 4] = {
         // 4 sets of:  2d coords, 2d tex coords
         0,0, 0,0,  0,1, 0,1,  1,0, 1,0,  1,1, 1,1 };
-    GLint squareIndexes[8 * 4] = { 0,1,2, 1,2,3 };
+    GLint squareIndexes[2 * 3] = { 0,1,2, 1,2,3 };
 
     glGenBuffers(1, &tempBufID);
     glBindBuffer(GL_ARRAY_BUFFER, tempBufID);
@@ -316,13 +349,40 @@ void init_opengl_objects() {
 
 //#############################################################################
 
+void init_game_objects() {
+    for (int y = 0; y < 10; ++y) {
+        for (int x = 0; x < 10; ++x) {
+            for (int side = 0; side < 6; ++side) {
+                grid[y][x][side] = 0;
+            }
+        }
+    }
+    for (int y = 0; y < 3; ++y) {
+        for (int x = 0; x < 4; ++x) {
+            grid[y][x][Sides::D] = 1;
+        }
+    }
+    grid[3][1][Sides::D] = 1;
+    grid[4][1][Sides::D] = 1;
+    grid[4][0][Sides::D] = 1;
+    grid[4][0][Sides::D] = 1;
+
+    grid[0][0][Sides::S] = 1;
+    grid[0][1][Sides::S] = 1;
+    grid[0][2][Sides::S] = 1;
+    grid[0][3][Sides::S] = 1;
+
+    grid[0][0][Sides::W] = 1;
+    grid[1][0][Sides::W] = 1;
+
+}
 
 //#############################################################################
 
 int main(void) {
     GLFWwindow *window = init_glfw();
     init_opengl_objects();
-    //init_game_objects();
+    init_game_objects();
 
     float ratio;
     int width, height;
