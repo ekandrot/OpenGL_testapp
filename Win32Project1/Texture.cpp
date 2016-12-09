@@ -22,20 +22,27 @@ static WICPixelFormatGUID GetImageFromFile(LPCWSTR file, IWICBitmap** bitmap) {
     IWICBitmapDecoder* decoder = NULL;
     IWICBitmapFrameDecode* frame = NULL;
     IWICFormatConverter* converter = NULL;
+    IWICBitmapFlipRotator* flipper;
 
     if (gFactory == NULL) {
         CoCreateInstance(CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&gFactory));
     }
     gFactory->CreateDecoderFromFilename(file, NULL, GENERIC_READ | GENERIC_WRITE, WICDecodeMetadataCacheOnDemand, &decoder);	
     decoder->GetFrame(0, &frame);
+
     gFactory->CreateFormatConverter(&converter);
     converter->Initialize(frame, GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone, NULL, 0.0, WICBitmapPaletteTypeCustom);
-    gFactory->CreateBitmapFromSource(converter, WICBitmapNoCache, bitmap);
+
+    gFactory->CreateBitmapFlipRotator(&flipper);
+    flipper->Initialize(converter, WICBitmapTransformFlipVertical);
+
+    gFactory->CreateBitmapFromSource(flipper, WICBitmapNoCache, bitmap);
 
     WICPixelFormatGUID  fmt;
     converter->GetPixelFormat(&fmt);
 
     //SafeRelease(&factory);
+    SafeRelease(&flipper);
     SafeRelease(&converter);
     SafeRelease(&frame);
     SafeRelease(&decoder);
