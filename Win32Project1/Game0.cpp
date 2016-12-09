@@ -5,6 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <map>
 #include <string>
 #include <GL/glew.h>
 #include "shaders.h"
@@ -30,13 +31,12 @@ enum MovementState {
 
 //#############################################################################
 
-enum Sides {
-    N = 0, E, S, W, U, D,
-    Size
-};
+uint32_t grid[10][10];
 
-
-uint32_t grid[10][10][Sides::Size];
+static inline bool is_blocking(uint32_t gridElement) {
+    if (gridElement < 1024) return true;
+    return false;
+}
 
 //#############################################################################
 
@@ -113,16 +113,16 @@ void Player::update_pos_onground(const GLfloat* look) {
     int iy = (int)_pos[1];
 
     // check for walls where we are, and prevent moving through them
-    if (grid[iy][ix][Sides::W] > 0) {
+    if (is_blocking(grid[iy][ix-1])) {
         newPos[0] = max(newPos[0], ix + 0.15);
     }
-    if (grid[iy][ix][Sides::E] > 0) {
+    if (is_blocking(grid[iy][ix+1])) {
         newPos[0] = min(newPos[0], ix + 0.85);
     }
-    if (grid[iy][ix][Sides::S] > 0) {
+    if (is_blocking(grid[iy-1][ix])) {
         newPos[1] = max(newPos[1], iy + 0.15);
     }
-    if (grid[iy][ix][Sides::N] > 0) {
+    if (is_blocking(grid[iy+1][ix])) {
         newPos[1] = min(newPos[1], iy + 0.85);
     }
 
@@ -165,8 +165,23 @@ void Player::update_pos_falling(const GLfloat* look) {
     newPos[1] = _pos[1] + Z[1] * _forwardV + Z[0] * _rightV;
     newPos[2] = _pos[2] + _upV;
 
-    newPos[0] = max(0, min(9, newPos[0]));
-    newPos[1] = max(0, min(9, newPos[1]));
+    // the indexes of where we are on the grid
+    int ix = (int)_pos[0];
+    int iy = (int)_pos[1];
+
+    // check for walls where we are, and prevent moving through them
+    if (is_blocking(grid[iy][ix - 1])) {
+        newPos[0] = max(newPos[0], ix + 0.15);
+    }
+    if (is_blocking(grid[iy][ix + 1])) {
+        newPos[0] = min(newPos[0], ix + 0.85);
+    }
+    if (is_blocking(grid[iy - 1][ix])) {
+        newPos[1] = max(newPos[1], iy + 0.15);
+    }
+    if (is_blocking(grid[iy + 1][ix])) {
+        newPos[1] = min(newPos[1], iy + 0.85);
+    }
 
     float groundHeight = 0;
     if (newPos[2] < groundHeight) {
@@ -439,7 +454,7 @@ static void shutdown_glfw(GLFWwindow *window) {
 GLuint CubeID;
 GLuint SquareTexturedVA;
 TextureShader *textureShader;
-std::vector<Texture*> textures;
+std::map<uint32_t, Texture*> textureDict;
 Texture *monsterTex;
 
 
@@ -467,7 +482,7 @@ void Scene::render(const float *pos, const float *look) {
         textureShader->use();
         glActiveTexture(GL_TEXTURE0);
         glUniform1i(textureShader->samplerID, 0);
-        GLfloat model[16] = { 0.5,0,0,0, 0,0.5,0,0, 0,0,0.5,0, 3.25,3.25,0.25,1 };
+        GLfloat model[16] = { 0.5,0,0,0, 0,0.5,0,0, 0,0,0.5,0, 7.25,3.25,0.25,1 };
         GLfloat squareMVP[16];
         matmul(MVP, model, squareMVP);
         glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, squareMVP);
@@ -489,40 +504,45 @@ void Scene::render(const float *pos, const float *look) {
         GLfloat finalMat[16];
         for (int y = 0; y < 10; ++y) {
             for (int x = 0; x < 10; ++x) {
-                if (grid[y][x][Sides::D] != 0) {
-                    textures[grid[y][x][Sides::D]]->bind();
+                textureDict[grid[y][x]]->bind();
+                if (!is_blocking(grid[y][x])) {
+                    // draw floor for non-blocking spaces
                     GLfloat locationMat[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, (GLfloat)x,(GLfloat)y,0,1 };
                     matmul(MVP, locationMat, finalMat);
                     glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
                     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
                 }
-                if (grid[y][x][Sides::S] != 0) {
-                    textures[grid[y][x][Sides::S]]->bind();
-                    GLfloat locationMat[16] = { -1,0,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x+1,(GLfloat)y,0,1 };
-                    matmul(MVP, locationMat, finalMat);
-                    glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
-                    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
-                }
-                if (grid[y][x][Sides::N] != 0) {
-                    textures[grid[y][x][Sides::N]]->bind();
-                    GLfloat locationMat[16] = { 1,0,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x,(GLfloat)y+1,0,1 };
-                    matmul(MVP, locationMat, finalMat);
-                    glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
-                    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
-                }
-                if (grid[y][x][Sides::W] != 0) {
-                    textures[grid[y][x][Sides::W]]->bind();
-                    GLfloat locationMat[16] = { 0,1,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x,(GLfloat)y,0,1 };
-                    matmul(MVP, locationMat, finalMat);
-                    glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
-                    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
-                }
-                if (grid[y][x][Sides::E] != 0) {
-                    textures[grid[y][x][Sides::E]]->bind();
-                    GLfloat locationMat[16] = { 0,-1,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x+1,(GLfloat)y+1,0,1 };
-                    matmul(MVP, locationMat, finalMat);
-                    glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
-                    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
+
+                if (is_blocking(grid[y][x])) {
+                    if (y>0 && !is_blocking(grid[y-1][x])) {
+                        // only draw South face if there is an non-blocking element to the south
+                        GLfloat locationMat[16] = { -1,0,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x + 1,(GLfloat)y,0,1 };
+                        matmul(MVP, locationMat, finalMat);
+                        glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
+                    }
+                    if (y < 9 && !is_blocking(grid[y+1][x])) {
+                        // only draw South face if there is an non-blocking element to the north
+                        GLfloat locationMat[16] = { 1,0,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x,(GLfloat)y + 1,0,1 };
+                        matmul(MVP, locationMat, finalMat);
+                        glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
+                    }
+
+                    if (x > 0 && !is_blocking(grid[y][x-1])) {
+                        GLfloat locationMat[16] = { 0,1,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x,(GLfloat)y,0,1 };
+                        matmul(MVP, locationMat, finalMat);
+                        glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
+                    }
+
+                    if (x < 9 && !is_blocking(grid[y][x+1])) {
+                        GLfloat locationMat[16] = { 0,-1,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x + 1,(GLfloat)y + 1,0,1 };
+                        matmul(MVP, locationMat, finalMat);
+                        glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
+                    }
+
                 }
             }
         }
@@ -610,10 +630,9 @@ void init_opengl_objects() {
     
     
     textureShader = new TextureShader("..\\shaders\\SimpleTextureShader.vert", "..\\shaders\\SimpleTextureShader.frag");
-    textures.push_back(nullptr);    // because textures are 1-based
-    textures.push_back(new Texture(std::wstring(L"..\\textures\\dirt_floor_0.png")));
-    textures.push_back(new Texture(std::wstring(L"..\\textures\\wall_0.jpg")));
 
+    textureDict[1] = new Texture(std::wstring(L"..\\textures\\wall_0.jpg"));
+    textureDict[1024] = new Texture(std::wstring(L"..\\textures\\dirt_floor_0.png"));
     monsterTex = new Texture(std::wstring(L"..\\textures\\dummy_0.jpg"));
 
     glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
@@ -626,44 +645,29 @@ void init_game_objects() {
     for (int y = 0; y < 10; ++y) {
         for (int x = 0; x < 10; ++x) {
             for (int side = 0; side < 6; ++side) {
-                grid[y][x][side] = 0;
+                grid[y][x] = 1024;
             }
-            grid[y][x][Sides::D] = 1;
         }
     }
-    //for (int y = 0; y < 3; ++y) {
-    //    for (int x = 0; x < 4; ++x) {
-    //        grid[y][x][Sides::D] = 1;
-    //    }
-    //}
-    //grid[3][1][Sides::D] = 2;
-    //grid[4][1][Sides::D] = 2;
-    //grid[4][0][Sides::D] = 2;
-    //grid[4][0][Sides::D] = 2;
+    for (int i = 0; i < 10; ++i) {
+        grid[0][i] = 1;
+        grid[9][i] = 1;
+        grid[i][0] = 1;
+        grid[i][9] = 1;
+    }
 
-    grid[0][0][Sides::S] = 2;
-    grid[0][1][Sides::S] = 2;
-    grid[0][2][Sides::S] = 2;
-    grid[0][3][Sides::S] = 2;
-    grid[4][0][Sides::S] = 2;
+    // build a small room for testing
+    grid[4][1] = 1;
+    grid[4][3] = 1;
+    grid[4][4] = 1;
+    grid[4][5] = 1;
+    grid[3][5] = 1;
+    grid[2][5] = 1;
+    grid[1][5] = 1;
 
-    grid[2][0][Sides::N] = 2;
-    grid[2][2][Sides::N] = 2;
-    grid[2][3][Sides::N] = 2;
-    grid[4][1][Sides::N] = 2;
-
-    grid[0][0][Sides::W] = 2;
-    grid[1][0][Sides::W] = 2;
-    grid[2][0][Sides::W] = 2;
-    grid[3][1][Sides::W] = 2;
-    grid[4][0][Sides::W] = 2;
-
-    grid[0][3][Sides::E] = 2;
-    grid[1][3][Sides::E] = 2;
-    grid[2][3][Sides::E] = 2;
-    grid[3][1][Sides::E] = 2;
-    grid[4][1][Sides::E] = 2;
-
+    grid[5][3] = 1;
+    grid[6][2] = 1;
+    grid[6][3] = 1;
 }
 
 //#############################################################################
