@@ -47,6 +47,7 @@ struct MovementInputState {
     bool _rightKey;
     bool _jumpKey;
     bool _diveKey;
+    bool _runningKey;
 };
 MovementInputState gMovementInputState;
 
@@ -56,8 +57,9 @@ struct Player {
 
     Player();
 
-    void get_eye(float *look) const;
-    void get_pos(float *look) const;
+    void update_eye_pos();
+    void get_eye_look(float *look) const;
+    void get_eye_pos(float *look) const;
 
     void update_gaze(GLfloat elevationDelta, GLfloat rotationDelta);
     void update_movement(const MovementInputState &movementInputState);
@@ -67,12 +69,12 @@ struct Player {
     void update_pos_onground(const GLfloat* look);
     void update_pos_falling(const GLfloat* look);
     void update_pos_flying(const GLfloat* look);
-
-    const float PLAYER_HEIGHT = 0.75f;
     
     // position and view within the world
+    bool _crouching = false;
+    bool _running = false;
     float _eyeHeight = 1.5f;
-    float _pos[3] = { 0,0,0 };
+    float _pos[3] = { 1,1,0 };
     float _facing = 45 * 3.14159f / 180;    // radians left/right around player axis
     float _facingUpDown = -45 * 3.14159f / 180;    // radians up/down with player eyes as level zero
 
@@ -105,10 +107,33 @@ void Player::update_pos_onground(const GLfloat* look) {
 
     bool validMove = false;
     // check falling off grid
-    if ((newPos[0] <= 0) || (newPos[0] >= 10) || (newPos[1] <= 0) || (newPos[1] >= 10)) {
+
+    // the indexes of where we are on the grid
+    int ix = (int)_pos[0];
+    int iy = (int)_pos[1];
+
+    // check for walls where we are, and prevent moving through them
+    if (grid[iy][ix][Sides::W] > 0) {
+        newPos[0] = max(newPos[0], ix + 0.15);
+    }
+    if (grid[iy][ix][Sides::E] > 0) {
+        newPos[0] = min(newPos[0], ix + 0.85);
+    }
+    if (grid[iy][ix][Sides::S] > 0) {
+        newPos[1] = max(newPos[1], iy + 0.15);
+    }
+    if (grid[iy][ix][Sides::N] > 0) {
+        newPos[1] = min(newPos[1], iy + 0.85);
+    }
+
+    // make sure we stay within the grid, overall
+    newPos[0] = max(0.15, min(9.85, newPos[0]));
+    newPos[1] = max(0.15, min(9.85, newPos[1]));
+
+  /*  if ((newPos[0] <= 0) || (newPos[0] >= 10) || (newPos[1] <= 0) || (newPos[1] >= 10)) {
         //playerState = Falling;
         //validMove = true;
-    } else {
+    } else */{
         //printf("%d, %d\n", (int)(newPos[0]*5 + 5), (int)(newPos[1]*5 + 5));
         float groundHeight = 0;
         float myHeight = newPos[2];
@@ -139,6 +164,9 @@ void Player::update_pos_falling(const GLfloat* look) {
     newPos[0] = _pos[0] + Z[0] * _forwardV - Z[1] * _rightV;
     newPos[1] = _pos[1] + Z[1] * _forwardV + Z[0] * _rightV;
     newPos[2] = _pos[2] + _upV;
+
+    newPos[0] = max(0, min(9, newPos[0]));
+    newPos[1] = max(0, min(9, newPos[1]));
 
     float groundHeight = 0;
     if (newPos[2] < groundHeight) {
@@ -197,20 +225,36 @@ void Player::update_pos(const GLfloat* look) {
 Player::Player() {
 }
 
-void Player::get_eye(float *look) const {
-    look[0] = _pos[0] + cosf(_facingUpDown) * cosf(_facing);
-    look[1] = _pos[1] + cosf(_facingUpDown) * sinf(_facing);
-    look[2] = _pos[2] + sinf(_facingUpDown) + PLAYER_HEIGHT;
+void Player::update_eye_pos() {
+    if (_crouching) {
+        if (_eyeHeight > 0.25) {
+            _eyeHeight -= 0.01;
+        } else {
+            _eyeHeight = 0.25;
+        }
+    } else {
+        if (_eyeHeight < 0.75) {
+            _eyeHeight += 0.01;
+        } else {
+            _eyeHeight = 0.75;
+        }
+    }
 }
 
-void Player::get_pos(float *pos) const {
+void Player::get_eye_look(float *look) const {
+    look[0] = _pos[0] + cosf(_facingUpDown) * cosf(_facing);
+    look[1] = _pos[1] + cosf(_facingUpDown) * sinf(_facing);
+    look[2] = _pos[2] + sinf(_facingUpDown) + _eyeHeight;
+}
+
+void Player::get_eye_pos(float *pos) const {
     pos[0] = _pos[0];
     pos[1] = _pos[1];
-    pos[2] = _pos[2] + PLAYER_HEIGHT;
+    pos[2] = _pos[2] +_eyeHeight;
 }
 
 void Player::update_velocities(int forwardMotion, int sidewaysMotion, int upMotion) {
-    const double maxSpeed = 0.035;
+    const double maxSpeed = (_crouching ? 0.008 : (_running ? 0.035 : 0.017));
     const double speeds[4] = { 0, 1, 1 / sqrt(2), 1 / sqrt(3) };
 
     switch (_movementState) {
@@ -252,10 +296,19 @@ void Player::update_movement(const MovementInputState &m) {
         sidewaysMotion = -1;
     }
 
+    _crouching = false;
     if (m._jumpKey && !m._diveKey) {
         upMotion = 1;
     } else if (m._diveKey && !m._jumpKey) {
         upMotion = -1;
+        if (_movementState == OnGround) {
+            _crouching = true;
+        }
+    }
+
+    _running = false;
+    if (m._runningKey) {
+        _running = true;
     }
 
     update_velocities(forwardMotion, sidewaysMotion, upMotion);
@@ -299,8 +352,11 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
         case GLFW_KEY_SPACE:
             gMovementInputState._jumpKey = (action != GLFW_RELEASE);
             break;
-        case GLFW_KEY_LEFT_SHIFT:
+        case GLFW_KEY_C:
             gMovementInputState._diveKey = (action != GLFW_RELEASE);
+            break;
+        case GLFW_KEY_LEFT_SHIFT:
+            gMovementInputState._runningKey = (action != GLFW_RELEASE);
             break;
         case GLFW_KEY_F:
             if (action == GLFW_PRESS) {
@@ -325,6 +381,12 @@ static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
     yposPrev = ypos;
     xposPrev = xpos;
     player.update_gaze(elevationDelta, rotationDelta);
+}
+
+//  *  @param[in] action   One of `GLFW_PRESS` or `GLFW_RELEASE`.
+static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+    if (button == 0 && action == GLFW_PRESS) {
+    }
 }
 
 static void error_callback(int error, const char* description) {
@@ -361,6 +423,7 @@ static GLFWwindow* init_glfw() {
     glfwSwapInterval(1);
     glfwSetKeyCallback(window, key_callback);
     glfwSetCursorPosCallback(window, cursor_pos_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwGetCursorPos(window, &xposPrev, &yposPrev);
     return window;
@@ -372,12 +435,12 @@ static void shutdown_glfw(GLFWwindow *window) {
     glfwTerminate();
     exit(EXIT_SUCCESS);
 }
-
 //#############################################################################
 GLuint CubeID;
 GLuint SquareTexturedVA;
 TextureShader *textureShader;
 std::vector<Texture*> textures;
+Texture *monsterTex;
 
 
 struct Scene {
@@ -396,6 +459,25 @@ void Scene::render(const float *pos, const float *look) {
     perspective(45, _ratio, 0.1f, 100.0f, projection);
     matmul(projection, view, MVP);
 
+    // draw monsters!
+    {
+        glBindVertexArray(CubeID);
+        glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray(1);
+        textureShader->use();
+        glActiveTexture(GL_TEXTURE0);
+        glUniform1i(textureShader->samplerID, 0);
+        GLfloat model[16] = { 0.5,0,0,0, 0,0.5,0,0, 0,0,0.5,0, 3.25,3.25,0.25,1 };
+        GLfloat squareMVP[16];
+        matmul(MVP, model, squareMVP);
+        glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, squareMVP);
+        monsterTex->bind();
+        glDrawElements(GL_QUADS, 24, GL_UNSIGNED_INT, nullptr);
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
+    }
+
+
     // draw a floor squares
     {
         glBindVertexArray(SquareTexturedVA);
@@ -404,48 +486,41 @@ void Scene::render(const float *pos, const float *look) {
         textureShader->use();
         glActiveTexture(GL_TEXTURE0);
         glUniform1i(textureShader->samplerID, 0);
-        GLfloat model[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, -0.5,-0.5,0,1 };
-        GLfloat squareMVP[16];
-        matmul(MVP, model, squareMVP);
+        GLfloat finalMat[16];
         for (int y = 0; y < 10; ++y) {
             for (int x = 0; x < 10; ++x) {
                 if (grid[y][x][Sides::D] != 0) {
                     textures[grid[y][x][Sides::D]]->bind();
-                    GLfloat finalMat[16];
                     GLfloat locationMat[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, (GLfloat)x,(GLfloat)y,0,1 };
-                    matmul(squareMVP, locationMat, finalMat);
+                    matmul(MVP, locationMat, finalMat);
                     glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
                     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
                 }
                 if (grid[y][x][Sides::S] != 0) {
                     textures[grid[y][x][Sides::S]]->bind();
-                    GLfloat finalMat[16];
                     GLfloat locationMat[16] = { -1,0,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x+1,(GLfloat)y,0,1 };
-                    matmul(squareMVP, locationMat, finalMat);
+                    matmul(MVP, locationMat, finalMat);
                     glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
                     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
                 }
                 if (grid[y][x][Sides::N] != 0) {
                     textures[grid[y][x][Sides::N]]->bind();
-                    GLfloat finalMat[16];
                     GLfloat locationMat[16] = { 1,0,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x,(GLfloat)y+1,0,1 };
-                    matmul(squareMVP, locationMat, finalMat);
+                    matmul(MVP, locationMat, finalMat);
                     glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
                     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
                 }
                 if (grid[y][x][Sides::W] != 0) {
                     textures[grid[y][x][Sides::W]]->bind();
-                    GLfloat finalMat[16];
                     GLfloat locationMat[16] = { 0,1,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x,(GLfloat)y,0,1 };
-                    matmul(squareMVP, locationMat, finalMat);
+                    matmul(MVP, locationMat, finalMat);
                     glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
                     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
                 }
                 if (grid[y][x][Sides::E] != 0) {
                     textures[grid[y][x][Sides::E]]->bind();
-                    GLfloat finalMat[16];
                     GLfloat locationMat[16] = { 0,-1,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x+1,(GLfloat)y+1,0,1 };
-                    matmul(squareMVP, locationMat, finalMat);
+                    matmul(MVP, locationMat, finalMat);
                     glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
                     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
                 }
@@ -539,6 +614,8 @@ void init_opengl_objects() {
     textures.push_back(new Texture(std::wstring(L"..\\textures\\dirt_floor_0.png")));
     textures.push_back(new Texture(std::wstring(L"..\\textures\\wall_0.jpg")));
 
+    monsterTex = new Texture(std::wstring(L"..\\textures\\dummy_0.jpg"));
+
     glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
     glEnable(GL_DEPTH_TEST);
 }
@@ -551,22 +628,24 @@ void init_game_objects() {
             for (int side = 0; side < 6; ++side) {
                 grid[y][x][side] = 0;
             }
-        }
-    }
-    for (int y = 0; y < 3; ++y) {
-        for (int x = 0; x < 4; ++x) {
             grid[y][x][Sides::D] = 1;
         }
     }
-    grid[3][1][Sides::D] = 2;
-    grid[4][1][Sides::D] = 2;
-    grid[4][0][Sides::D] = 2;
-    grid[4][0][Sides::D] = 2;
+    //for (int y = 0; y < 3; ++y) {
+    //    for (int x = 0; x < 4; ++x) {
+    //        grid[y][x][Sides::D] = 1;
+    //    }
+    //}
+    //grid[3][1][Sides::D] = 2;
+    //grid[4][1][Sides::D] = 2;
+    //grid[4][0][Sides::D] = 2;
+    //grid[4][0][Sides::D] = 2;
 
     grid[0][0][Sides::S] = 2;
     grid[0][1][Sides::S] = 2;
     grid[0][2][Sides::S] = 2;
     grid[0][3][Sides::S] = 2;
+    grid[4][0][Sides::S] = 2;
 
     grid[2][0][Sides::N] = 2;
     grid[2][2][Sides::N] = 2;
@@ -576,6 +655,7 @@ void init_game_objects() {
     grid[0][0][Sides::W] = 2;
     grid[1][0][Sides::W] = 2;
     grid[2][0][Sides::W] = 2;
+    grid[3][1][Sides::W] = 2;
     grid[4][0][Sides::W] = 2;
 
     grid[0][3][Sides::E] = 2;
@@ -610,8 +690,9 @@ int main(void) {
 
         float pos[3];
         float look[3];
-        player.get_pos(pos);
-        player.get_eye(look);  // get eye so we know which direction forward is
+        player.update_eye_pos();
+        player.get_eye_pos(pos);
+        player.get_eye_look(look);  // get eye so we know which direction forward is
         scene.render(pos, look);
 
         glfwSwapBuffers(window);
