@@ -20,6 +20,8 @@ static GLuint LoadShaders(const char * vertex_file_path, const char * fragment_f
         while(getline(VertexShaderStream, Line))
                         VertexShaderCode += "\n" + Line;
         VertexShaderStream.close();
+    } else {
+        std::cout << vertex_file_path << " didn't open" << std::endl;
     }
     
     // Read the Fragment Shader code from the file
@@ -30,6 +32,8 @@ static GLuint LoadShaders(const char * vertex_file_path, const char * fragment_f
         while(getline(FragmentShaderStream, Line))
                         FragmentShaderCode += "\n" + Line;
         FragmentShaderStream.close();
+    } else {
+        std::cout << fragment_file_path << " didn't open" << std::endl;
     }
     
     GLint Result = GL_FALSE;
@@ -121,7 +125,7 @@ TextureShader::TextureShader(const char * vertex_file_path, const char * fragmen
 
     // debugging code
     if (matrixID == -1 || samplerID == -1) {
-        printf("*** FixedColorShader not loaded correctly\n");
+        printf("*** SimpleTextureShader not loaded correctly\n");
     }
 }
 

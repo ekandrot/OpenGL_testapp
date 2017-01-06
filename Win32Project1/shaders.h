@@ -17,8 +17,8 @@ public:
 
 class FixedColorShader : public Shader {
 public:
-    GLuint matrixID;
-    GLuint colorID;
+    GLint matrixID;
+    GLint colorID;
 
     FixedColorShader(const char * vertex_file_path, const char * fragment_file_path);
 };
@@ -27,8 +27,8 @@ public:
 
 class TextureShader : public Shader {
 public:
-    GLuint matrixID;
-    GLuint samplerID;
+    GLint matrixID;
+    GLint samplerID;
 
     TextureShader(const char * vertex_file_path, const char * fragment_file_path);
 };

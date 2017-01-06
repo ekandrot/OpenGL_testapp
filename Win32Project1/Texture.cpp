@@ -1,7 +1,8 @@
 #include "Texture.h"
 #include <stdio.h>
-#include <Wincodec.h>
 
+#ifdef _WIN32
+#include <Wincodec.h>
 
 
 ////////////////////////////////////////////////////////////////////////////
@@ -119,6 +120,75 @@ GLuint Create(const std::wstring& fileName) {
 Texture::Texture(const std::wstring& fileName) {
     texID = Create(fileName);
 }
+
+#else
+
+static GLenum GetImageFromFile(__attribute__((unused)) const char *fileName, __attribute__((unused)) uint8_t **bitmap) {
+    return GL_BGRA;
+}
+
+GLuint Create(__attribute__((unused)) const std::string& fileName) {
+    const char *file = fileName.c_str();
+    if (!glIsEnabled(GL_TEXTURE_2D)) {
+        glEnable(GL_TEXTURE_2D);
+    }
+
+    uint8_t* bitmap = NULL;
+
+    GLenum textureFormat = GetImageFromFile(file, &bitmap);
+#if 0
+    if (!bitmap) return FALSE;
+
+    WICRect r = {0};
+    bitmap->GetSize((UINT*)&r.Width, (UINT*)&r.Height);
+
+    BYTE* data = NULL;
+    UINT len = 0;
+
+    bitmap->Lock(&r, WICBitmapLockRead, &lock);
+    lock->GetDataPointer(&len, &data);
+
+    GLuint glid = 0;
+    glGenTextures(1, &glid);
+    glBindTexture(GL_TEXTURE_2D, glid);
+    gluBuild2DMipmaps(GL_TEXTURE_2D,
+        GL_RGBA8,
+        r.Width, r.Height,
+        textureFormat,
+        GL_UNSIGNED_BYTE,
+        data);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+#else
+    GLuint glid = 0;
+    glGenTextures(1, &glid);
+    glBindTexture(GL_TEXTURE_2D, glid);
+
+    uint32_t buf[16*16];
+    for (int x=0;x<16*16;) {
+      buf[x++] = 0xFF000000;        //ARGB
+      buf[x++] = 0xFFFF0000;
+    }
+    glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA8 , 16, 16, 0, textureFormat, GL_UNSIGNED_BYTE, (void*)buf);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+#endif
+
+    //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, r.Width, r.Height, 0, textureFormat, GL_UNSIGNED_BYTE, data);
+
+//    printf("Loading texture:  %s\n", ((GL_NO_ERROR == glGetError())?"success":"failed"));
+
+    return glid;
+}
+
+////////////////////////////////////////////////////////////////////////////
+
+Texture::Texture(const std::string& fileName) {
+    texID = Create(fileName);
+}
+
+#endif
 
 Texture::~Texture(void) {
 }

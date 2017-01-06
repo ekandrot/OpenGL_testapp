@@ -629,11 +629,11 @@ void init_opengl_objects() {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     
     
-    textureShader = new TextureShader("..\\shaders\\SimpleTextureShader.vert", "..\\shaders\\SimpleTextureShader.frag");
+    textureShader = new TextureShader("shaders/SimpleTextureShader.vert", "shaders/SimpleTextureShader.frag");
 
-    textureDict[1] = new Texture(std::wstring(L"..\\textures\\wall_0.jpg"));
-    textureDict[1024] = new Texture(std::wstring(L"..\\textures\\dirt_floor_0.png"));
-    monsterTex = new Texture(std::wstring(L"..\\textures\\dummy_0.jpg"));
+    textureDict[1] = new Texture("textures/wall_0.jpg");
+    textureDict[1024] = new Texture("textures/dirt_floor_0.png");
+    monsterTex = new Texture("textures/dummy_0.jpg");
 
     glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
     glEnable(GL_DEPTH_TEST);

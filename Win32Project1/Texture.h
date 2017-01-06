@@ -9,7 +9,7 @@ protected:
     GLuint  texID;
 public:
     Texture(void):texID(0) {}
-    Texture(const std::wstring& fileName);
+    Texture(const std::string& fileName);
     virtual ~Texture(void);
 
     void bind(void) {
