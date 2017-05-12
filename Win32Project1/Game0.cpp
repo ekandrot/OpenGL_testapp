@@ -351,27 +351,28 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 
     // action can be GLFW_PRESS or GLFW_REPEAT to count as down
     // action will be GLFW_RELEASE when the key is released
+    bool keyIsDown = (action != GLFW_RELEASE);
     switch (key) {
         case GLFW_KEY_W:
-            gMovementInputState._forwardKey = (action != GLFW_RELEASE);
+            gMovementInputState._forwardKey = keyIsDown;
             break;
         case GLFW_KEY_S:
-            gMovementInputState._backwardKey = (action != GLFW_RELEASE);
+            gMovementInputState._backwardKey = keyIsDown;
             break;
         case GLFW_KEY_A:
-            gMovementInputState._leftKey = (action != GLFW_RELEASE);
+            gMovementInputState._leftKey = keyIsDown;
             break;
         case GLFW_KEY_D:
-            gMovementInputState._rightKey = (action != GLFW_RELEASE);
+            gMovementInputState._rightKey = keyIsDown;
             break;
         case GLFW_KEY_SPACE:
-            gMovementInputState._jumpKey = (action != GLFW_RELEASE);
+            gMovementInputState._jumpKey = keyIsDown;
             break;
         case GLFW_KEY_C:
-            gMovementInputState._diveKey = (action != GLFW_RELEASE);
+            gMovementInputState._diveKey = keyIsDown;
             break;
         case GLFW_KEY_LEFT_SHIFT:
-            gMovementInputState._runningKey = (action != GLFW_RELEASE);
+            gMovementInputState._runningKey = keyIsDown;
             break;
         case GLFW_KEY_F:
             if (action == GLFW_PRESS) {
@@ -691,7 +692,6 @@ int main(void) {
 
     clock_t startTime = clock(); //Start timer
     while (!glfwWindowShouldClose(window)) {
-
         float pos[3];
         float look[3];
         player.update_eye_pos();
@@ -699,6 +699,15 @@ int main(void) {
         player.get_eye_look(look);  // get eye so we know which direction forward is
         scene.render(pos, look);
 
+        // on the latest Ubuntu with the latest GLFW, I'm seeing key sequences:
+        //  press, repeat, release, press, repeat, release - when there was only one press/release
+        //  there was a bug that was fixed that was supposed to fix this, but I'm still seeing it.
+        //  it is from event polling not being called frequently enough.
+        //  I found by adding these 4 calls to poll events here, it minimizes this bug.
+        //  revisit when https://github.com/glfw/glfw/issues/747 is truly fixed.  05/12/2017
+        glfwPollEvents();
+        glfwPollEvents();
+        glfwPollEvents();
         glfwSwapBuffers(window);
         glfwPollEvents();
         update_object_locations(look);
