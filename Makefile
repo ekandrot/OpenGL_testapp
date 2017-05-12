@@ -1,5 +1,5 @@
 CFLAGS := `pkg-config libpng --cflags` -Wall  -std=c++0x -c -O3
-LFLAGS := `pkg-config libpng --libs` -lglut -lGLEW -lGL -lglfw
+LFLAGS := `pkg-config libpng --libs` -lglut -lGLEW -lGL -lglfw -ljpeg
 OBJDIR := objs/
 SRC := Win32Project1/
 APP_OBJS := $(LIBS_OBJS) $(addprefix $(OBJDIR), shaders.o Texture.o Game0.o)
