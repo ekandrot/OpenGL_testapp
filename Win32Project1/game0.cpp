@@ -9,7 +9,7 @@
 #include <string>
 #include <GL/glew.h>
 #include "shaders.h"
-#include "Texture.h"
+#include "texture.h"
 #include "maths.h"
 
 #define GLFW_INCLUDE_GLU
