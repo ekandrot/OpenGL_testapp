@@ -1,11 +1,9 @@
 #include "shaders.h"
+#include <algorithm>
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
-
-#define max(a, b) ( (a) < (b) ? (b) : (a) )
-#define min(a, b) ( (a) > (b) ? (b) : (a) )
 
 static GLuint LoadShaders(const char * vertex_file_path, const char * fragment_file_path) {
     // Create the shaders
@@ -80,7 +78,7 @@ static GLuint LoadShaders(const char * vertex_file_path, const char * fragment_f
     glGetProgramiv(ProgramID, GL_LINK_STATUS, &Result);
     glGetProgramiv(ProgramID, GL_INFO_LOG_LENGTH, &InfoLogLength);
     if (InfoLogLength > 0) {
-        std::vector<char> ProgramErrorMessage(max(InfoLogLength, int(1)));
+        std::vector<char> ProgramErrorMessage(std::max(InfoLogLength, int(1)));
         glGetProgramInfoLog(ProgramID, InfoLogLength, NULL, &ProgramErrorMessage[0]);
         std::cout << &ProgramErrorMessage[0] << std::endl;
     }

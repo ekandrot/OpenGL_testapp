@@ -6,6 +6,7 @@
 #include <fstream>
 #include <vector>
 #include <map>
+#include <algorithm>
 #include <string>
 #include <GL/glew.h>
 #include "shaders.h"
@@ -114,21 +115,21 @@ void Player::update_pos_onground(const GLfloat* look) {
 
     // check for walls where we are, and prevent moving through them
     if (is_blocking(grid[iy][ix-1])) {
-        newPos[0] = max(newPos[0], ix + 0.15);
+        newPos[0] = std::max(newPos[0], ix + 0.15f);
     }
     if (is_blocking(grid[iy][ix+1])) {
-        newPos[0] = min(newPos[0], ix + 0.85);
+        newPos[0] = std::min(newPos[0], ix + 0.85f);
     }
     if (is_blocking(grid[iy-1][ix])) {
-        newPos[1] = max(newPos[1], iy + 0.15);
+        newPos[1] = std::max(newPos[1], iy + 0.15f);
     }
     if (is_blocking(grid[iy+1][ix])) {
-        newPos[1] = min(newPos[1], iy + 0.85);
+        newPos[1] = std::min(newPos[1], iy + 0.85f);
     }
 
     // make sure we stay within the grid, overall
-    newPos[0] = max(0.15, min(9.85, newPos[0]));
-    newPos[1] = max(0.15, min(9.85, newPos[1]));
+    newPos[0] = std::max(0.15f, std::min(9.85f, newPos[0]));
+    newPos[1] = std::max(0.15f, std::min(9.85f, newPos[1]));
 
   /*  if ((newPos[0] <= 0) || (newPos[0] >= 10) || (newPos[1] <= 0) || (newPos[1] >= 10)) {
         //playerState = Falling;
@@ -171,16 +172,16 @@ void Player::update_pos_falling(const GLfloat* look) {
 
     // check for walls where we are, and prevent moving through them
     if (is_blocking(grid[iy][ix - 1])) {
-        newPos[0] = max(newPos[0], ix + 0.15);
+        newPos[0] = std::max(newPos[0], ix + 0.15f);
     }
     if (is_blocking(grid[iy][ix + 1])) {
-        newPos[0] = min(newPos[0], ix + 0.85);
+        newPos[0] = std::min(newPos[0], ix + 0.85f);
     }
     if (is_blocking(grid[iy - 1][ix])) {
-        newPos[1] = max(newPos[1], iy + 0.15);
+        newPos[1] = std::max(newPos[1], iy + 0.15f);
     }
     if (is_blocking(grid[iy + 1][ix])) {
-        newPos[1] = min(newPos[1], iy + 0.85);
+        newPos[1] = std::min(newPos[1], iy + 0.85f);
     }
 
     float groundHeight = 0;
@@ -331,8 +332,8 @@ void Player::update_movement(const MovementInputState &m) {
 
 void Player::update_gaze(GLfloat elevationDelta, GLfloat rotationDelta) {
     _facingUpDown -= elevationDelta;
-    _facingUpDown = max(-3.14159f / 2, _facingUpDown);
-    _facingUpDown = min(3.14159f / 2, _facingUpDown);
+    _facingUpDown = std::max(-3.14159f / 2, _facingUpDown);
+    _facingUpDown = std::min(3.14159f / 2, _facingUpDown);
 
     _facing -= rotationDelta;
 }
@@ -690,7 +691,7 @@ int main(void) {
     glViewport(0, 0, width, height);
     Scene scene(ratio);
 
-    clock_t startTime = clock(); //Start timer
+//    clock_t startTime = clock(); //Start timer
     while (!glfwWindowShouldClose(window)) {
         float pos[3];
         float look[3];
