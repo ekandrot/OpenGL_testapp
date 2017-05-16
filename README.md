@@ -2,7 +2,7 @@
 
 # README #
 
-A place to test 3d game ideas using OpenGL.  Currently, a Windows MSVC 2015 project.
+A place to test 3d game ideas using OpenGL.  Currently, working on the Linux app, Windows needs to be updated to build.
 
 ### What is this repository for? ###
 
@@ -12,6 +12,7 @@ A place to test 3d game ideas using OpenGL.  Currently, a Windows MSVC 2015 proj
 
 ### How do I get set up? ###
 
+* Linux - standard dev install, with glew.
 * Windows MSVC 2015 Community Edition project.
 * Configuration - none.
 * Dependencies - OpenGL.
