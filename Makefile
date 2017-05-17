@@ -1,5 +1,5 @@
 CFLAGS := `pkg-config libpng --cflags` -Wall  -std=c++14 -c -O3 -I common
-LFLAGS := `pkg-config libpng --libs` -lglut -lGLEW -lGL -lglfw -ljpeg
+LFLAGS := `pkg-config libpng --libs` -lglut -lGLEW -lGL -lGLU -lglfw -ljpeg
 OBJDIR := objs/
 SRC := linux_project/
 APP_OBJS := $(LIBS_OBJS) $(addprefix $(OBJDIR), texture.o shaders.o game0.o)

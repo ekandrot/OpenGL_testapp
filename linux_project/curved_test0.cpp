@@ -14,13 +14,18 @@
 #include "texture.h"
 #include "maths.h"
 
+//#############################################################################
+
+static void init_opengl_objects() {
+}
 
 //#############################################################################
 
 int main(void) {
     GameView window;
-#if 0
+
     init_opengl_objects();
+#if 0
     init_game_objects();
 
     float ratio;
