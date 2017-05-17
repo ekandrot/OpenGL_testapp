@@ -110,6 +110,10 @@ bool GameView::shouldQuit() {
     return glfwWindowShouldClose(pimpl->window);
 }
 
+void GameView::getFramebufferDim(int &width, int &height) {
+    glfwGetFramebufferSize(pimpl->window, &width, &height);
+}
+
 //#############################################################################
 //#############################################################################
 

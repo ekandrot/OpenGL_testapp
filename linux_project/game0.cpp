@@ -479,8 +479,6 @@ void Scene::render(const float *pos, const float *look) {
     // draw monsters!
     {
         glBindVertexArray(CubeID);
-        glEnableVertexAttribArray(0);
-        glEnableVertexAttribArray(1);
         textureShader->use();
         glActiveTexture(GL_TEXTURE0);
         glUniform1i(textureShader->samplerID, 0);
@@ -490,16 +488,12 @@ void Scene::render(const float *pos, const float *look) {
         glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, squareMVP);
         monsterTex->bind();
         glDrawElements(GL_QUADS, 24, GL_UNSIGNED_INT, nullptr);
-        glDisableVertexAttribArray(0);
-        glDisableVertexAttribArray(1);
     }
 
 
     // draw a floor squares
     {
         glBindVertexArray(SquareTexturedVA);
-        glEnableVertexAttribArray(0);
-        glEnableVertexAttribArray(1);
         textureShader->use();
         glActiveTexture(GL_TEXTURE0);
         glUniform1i(textureShader->samplerID, 0);
@@ -548,9 +542,10 @@ void Scene::render(const float *pos, const float *look) {
                 }
             }
         }
-        glDisableVertexAttribArray(0);
-        glDisableVertexAttribArray(1);
     }
+
+    // clear the binding to the default VAO
+    glBindVertexArray(0);
 }
 
 
@@ -590,6 +585,8 @@ void init_opengl_objects() {
         4 * sizeof(GLfloat),  // stride
         (void*)(2 * sizeof(GLfloat)) // array buffer offset
     );
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
 
 
 //    GLuint CubeID;
@@ -625,6 +622,8 @@ void init_opengl_objects() {
         5 * sizeof(GLfloat),  // stride
         (void*)(3 * sizeof(GLfloat)) // array buffer offset
     );
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
 
 
     // clear the bound buffer array
