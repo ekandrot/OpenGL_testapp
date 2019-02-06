@@ -17,6 +17,14 @@
 #define GLFW_INCLUDE_GLEXT
 #include <GLFW/glfw3.h>
 
+
+
+GLfloat *roach_data;
+GLint *roach_indexes;
+GLsizeiptr sizeof_roach_data;
+GLsizeiptr sizeof_roach_indexes;
+int count_roach_indexes;
+
 //#############################################################################
 
 const GLfloat GRAVITY = -0.001f;
@@ -270,7 +278,7 @@ void Player::get_eye_pos(float *pos) const {
 }
 
 void Player::update_velocities(int forwardMotion, int sidewaysMotion, int upMotion) {
-    const double maxSpeed = (_crouching ? 0.008 : (_running ? 0.035 : 0.017));
+    const double maxSpeed = 2*(_crouching ? 0.008 : (_running ? 0.035 : 0.017));
     const double speeds[4] = { 0, 1, 1 / sqrt(2), 1 / sqrt(3) };
 
     switch (_movementState) {
@@ -456,6 +464,7 @@ static void shutdown_glfw(GLFWwindow *window) {
 GLuint CubeID;
 GLuint SquareTexturedVA;
 TextureShader *textureShader;
+FixedColorShader *colorShader;
 std::map<uint32_t, Texture*> textureDict;
 Texture *monsterTex;
 
@@ -465,10 +474,10 @@ struct Scene {
 
     Scene(float ratio) : _ratio(ratio) {}
 
-    void render(const float *pos, const float *look);
+    void render(const float *pos, const float *look, double tick);
 };
 
-void Scene::render(const float *pos, const float *look) {
+void Scene::render(const float *pos, const float *look, double tick) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     float MVP[16], view[16], projection[16];
@@ -479,15 +488,17 @@ void Scene::render(const float *pos, const float *look) {
     // draw monsters!
     {
         glBindVertexArray(CubeID);
-        textureShader->use();
-        glActiveTexture(GL_TEXTURE0);
-        glUniform1i(textureShader->samplerID, 0);
-        GLfloat model[16] = { 0.5,0,0,0, 0,0.5,0,0, 0,0,0.5,0, 7.25,3.25,0.25,1 };
+        colorShader->use();
+        //glActiveTexture(GL_TEXTURE0);
+        glUniform3f(colorShader->colorID, 166/255.0, 123/255.0, 91/255.0);
+        float monster_x = 7.25 + sin(tick/100);
+        float monster_y = 3.25 + cos(tick/100);
+        GLfloat model[16] = { 0.5,0,0,0, 0,0.5,0,0, 0,0,0.5,0, (float)monster_x,monster_y,0.25,1 };
         GLfloat squareMVP[16];
         matmul(MVP, model, squareMVP);
-        glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, squareMVP);
+        glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, squareMVP);
         monsterTex->bind();
-        glDrawElements(GL_QUADS, 24, GL_UNSIGNED_INT, nullptr);
+        glDrawElements(GL_QUADS, count_roach_indexes, GL_UNSIGNED_INT, nullptr);
     }
 
 
@@ -544,6 +555,11 @@ void Scene::render(const float *pos, const float *look) {
         }
     }
 
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        printf("***  GL errors standing in your way\n");
+    }
+
     // clear the binding to the default VAO
     glBindVertexArray(0);
 }
@@ -592,28 +608,30 @@ void init_opengl_objects() {
 //    GLuint CubeID;
     glGenVertexArrays(1, &CubeID);
     glBindVertexArray(CubeID);
-    GLfloat cubeData[12 * 5] = {
-        0,0,0, 0,0,  0,1,0, 1,0,  0,1,1, 1,1,  0,0,1, 0,1,  1,1,0, 0,0,  1,1,1, 0,1,  1,0,0, 1,0,  1,0,1, 1,1,
-        1,0,1, 0,0,  0,0,1, 1,0,  1,0,0, 0,1,  0,0,0, 1,1 };
-    GLint cubeIndexes[8 * 4] = { 0,1,2,3, 1,4,5,2, 4,6,7,5, 6,0,3,7, 2,5,8,9, 1,4,10,11 };
+//    GLfloat cubeData[12 * 5] = {
+//        0,0,0, 0,0,  0,1,0, 1,0,  0,1,1, 1,1,  0,0,1, 0,1,  1,1,0, 0,0,  1,1,1, 0,1,  1,0,0, 1,0,  1,0,1, 1,1,
+//        1,0,1, 0,0,  0,0,1, 1,0,  1,0,0, 0,1,  0,0,0, 1,1 };
+//    GLint cubeIndexes[8 * 4] = { 0,1,2,3, 1,4,5,2, 4,6,7,5, 6,0,3,7, 2,5,8,9, 1,4,10,11 };
 
     glGenBuffers(1, &tempBufID);
     glBindBuffer(GL_ARRAY_BUFFER, tempBufID);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(cubeData), cubeData, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof_roach_data, roach_data, GL_STATIC_DRAW);
 
     glGenBuffers(1, &tempBufID);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tempBufID);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cubeIndexes), cubeIndexes, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof_roach_indexes, roach_indexes, GL_STATIC_DRAW);
 
     glVertexAttribPointer(
         0,  // attribute 0. No particular reason for 0, but must match the layout in the shader.
         3,  // size
         GL_FLOAT,   // type
         GL_FALSE,   // normalized?
-        5 * sizeof(GLfloat),  // stride
+        3 * sizeof(GLfloat),  // stride
         (void*)0 // array buffer offset
     );
+    glEnableVertexAttribArray(0);
 
+#if 0
     glVertexAttribPointer(
         1,
         2,  // size
@@ -622,15 +640,19 @@ void init_opengl_objects() {
         5 * sizeof(GLfloat),  // stride
         (void*)(3 * sizeof(GLfloat)) // array buffer offset
     );
-    glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
+#endif
 
+
+    // clear the binding to the default VAO
+    glBindVertexArray(0);
 
     // clear the bound buffer array
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     
     
     textureShader = new TextureShader("shaders/SimpleTextureShader.vert", "shaders/SimpleTextureShader.frag");
+    colorShader = new FixedColorShader("shaders/FixedColorShader.vert", "shaders/FixedColorShader.frag");
 
     textureDict[1] = new Texture("textures/wall_0.jpg");
     textureDict[1024] = new Texture("textures/dirt_floor_0.png");
@@ -638,6 +660,11 @@ void init_opengl_objects() {
 
     glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
     glEnable(GL_DEPTH_TEST);
+
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        printf("***  GL errors standing in your way\n");
+    }
 }
 
 //#############################################################################
@@ -673,12 +700,101 @@ void init_game_objects() {
 
 //#############################################################################
 
+static void get_vertex(const char *buffer, GLfloat *a, GLfloat *b, GLfloat *c) {
+    *a = atof(buffer) / 10;
+    ++buffer;
+    while (*buffer++ != ' ') ;
+    *b = atof(buffer) / 10;
+    while (*buffer++ != ' ') ;
+    *c = atof(buffer) / 10;
+}
+
+static void get_face(const char *buffer, GLint *a, GLint *b, GLint *c, GLint *d) {
+    *a = atoi(buffer) -1;
+    ++buffer;
+    while (*buffer++ != ' ') ;
+    *b = atoi(buffer) -1;
+    while (*buffer++ != ' ') ;
+    *c = atof(buffer) -1;
+    while (*buffer++ != ' ') ;
+    *d = atof(buffer) -1;
+}
+
+void load_model(const char *file_name) {
+    FILE *f = fopen(file_name, "r");
+
+    char *buffer = new char[16*1024*1024];
+    if (buffer == nullptr) {
+        printf("*** weak memory - can not load model\n");
+        return;
+    }
+    size_t bytes_read = fread(buffer, 1, 16*1024*1024, f);
+
+    int vertex_count = 0;
+    int face_count = 0;
+    for (size_t i=0; i<bytes_read-2; ++i) {
+        if (buffer[i] == 'v' && buffer[i+1] == ' ' && buffer[i+2] == ' ') {
+            ++vertex_count;
+        } else if (buffer[i] == 'f' && buffer[i+1] == ' ') {
+            ++face_count;
+        }
+    }
+    printf("vertex count:  %d\n", vertex_count);
+    printf("face count:  %d\n", face_count);
+
+    sizeof_roach_data = vertex_count * 3 * sizeof(GLfloat);
+    sizeof_roach_indexes = face_count * 4 * sizeof(GLint);
+    count_roach_indexes = face_count*4;
+
+    roach_data = new GLfloat[vertex_count * 3];
+    roach_indexes = new GLint[face_count * 4];
+
+#if 0
+    if (roach_data == nullptr) {
+        printf("*** no roach data for you\n");
+        return;
+    }
+    if (roach_indexes == nullptr) {
+        printf("*** no roach indexes for you\n");
+        return;
+    }
+#endif
+
+    vertex_count = 0;
+    face_count = 0;
+    for (size_t i=0; i<bytes_read-2; ++i) {
+        if (buffer[i] == 'v' && buffer[i+1] == ' ' && buffer[i+2] == ' ') {
+            get_vertex(&buffer[i+3], &roach_data[vertex_count*3], &roach_data[vertex_count*3+1], &roach_data[vertex_count*3+2]);
+            ++vertex_count;
+        } else if (buffer[i] == 'f' && buffer[i+1] == ' ') {
+            get_face(&buffer[i+2], &roach_indexes[face_count*4], &roach_indexes[face_count*4+1], &roach_indexes[face_count*4+2], &roach_indexes[face_count*4+3]);
+            ++face_count;
+        }
+    }
+     
+#if 0
+    for(int i=0; i<100; ++i) {
+        printf("%f, ", roach_data[i]);
+    }
+    for(int i=0; i<100; ++i) {
+        printf("%d, ", roach_indexes[i]);
+    }
+#endif
+
+    delete buffer;
+    fclose(f);
+}
+
+//#############################################################################
+
 void update_object_locations(float *look) {
     player.update_movement(gMovementInputState);
     player.update_pos(look);
 }
 
 int main(void) {
+    load_model("models/15919_Cockroach_v1.obj");
+
     GLFWwindow *window = init_glfw();
     init_opengl_objects();
     init_game_objects();
@@ -691,13 +807,15 @@ int main(void) {
     Scene scene(ratio);
 
 //    clock_t startTime = clock(); //Start timer
+    double tick = 0;
     while (!glfwWindowShouldClose(window)) {
+        tick += 1;
         float pos[3];
         float look[3];
         player.update_eye_pos();
         player.get_eye_pos(pos);
         player.get_eye_look(look);  // get eye so we know which direction forward is
-        scene.render(pos, look);
+        scene.render(pos, look, tick);
 
         // on the latest Ubuntu with the latest GLFW, I'm seeing key sequences:
         //  press, repeat, release, press, repeat, release - when there was only one press/release

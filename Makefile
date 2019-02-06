@@ -1,4 +1,4 @@
-CFLAGS := `pkg-config libpng --cflags` -Wall  -std=c++14 -c -O3 -I common
+CFLAGS := `pkg-config libpng --cflags` -Wall  -std=c++14 -g -c -O3 -I common
 LFLAGS := `pkg-config libpng --libs` -lglut -lGLEW -lGL -lGLU -lglfw -ljpeg
 OBJDIR := objs/
 SRC := linux_project/
