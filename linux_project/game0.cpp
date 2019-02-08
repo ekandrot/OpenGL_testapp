@@ -38,6 +38,11 @@ enum MovementState {
     God,
 };
 
+enum GameMode {
+    Playing,
+    Inventory,
+};
+
 //#############################################################################
 
 uint32_t grid[10][10];
@@ -59,6 +64,15 @@ struct MovementInputState {
     bool _runningKey;
 };
 MovementInputState gMovementInputState;
+
+//#############################################################################
+
+struct Game {
+    Game() : _mode(Playing) {}
+
+    GameMode _mode;
+};
+Game gGame;
 
 //#############################################################################
 
@@ -392,6 +406,15 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                 }
             }
             break;
+        case GLFW_KEY_E:
+            if (action == GLFW_PRESS) {
+                if (gGame._mode == Inventory) {
+                    gGame._mode = Playing;
+                } else {
+                    gGame._mode = Inventory;
+                }
+            }
+            break;
         default:
             break;
     }
@@ -463,6 +486,7 @@ static void shutdown_glfw(GLFWwindow *window) {
 //#############################################################################
 GLuint CubeID;
 GLuint SquareTexturedVA;
+GLuint inventory_cells_va;
 TextureShader *textureShader;
 FixedColorShader *colorShader;
 std::map<uint32_t, Texture*> textureDict;
@@ -497,7 +521,6 @@ void Scene::render(const float *pos, const float *look, double tick) {
         GLfloat squareMVP[16];
         matmul(MVP, model, squareMVP);
         glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, squareMVP);
-        monsterTex->bind();
         glDrawElements(GL_QUADS, count_roach_indexes, GL_UNSIGNED_INT, nullptr);
     }
 
@@ -555,6 +578,33 @@ void Scene::render(const float *pos, const float *look, double tick) {
         }
     }
 
+    // should we render player's inventory over the game screen?
+    if (gGame._mode == Inventory) {
+        glBindVertexArray(SquareTexturedVA);
+        colorShader->use();
+        glUniform3f(colorShader->colorID, 166/255.0, 166/255.0, 166/255.0);
+        GLfloat model[16] = { 1.5,0,0,0, 0,1.5,0,0, 0,0,0,0, -0.75,-0.75,-0.5,1 };
+        glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, model);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+
+        glBindVertexArray(inventory_cells_va);
+        colorShader->use();
+        glUniform3f(colorShader->colorID, 0, 0, 0);
+        GLfloat model_cells[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,-0.51,1 };
+        glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, model_cells);
+        glDrawElements(GL_TRIANGLE_STRIP, 6*5*10, GL_UNSIGNED_INT, nullptr);
+#if 0
+        for (int y=0; y<5; ++y) {
+            for (int x=0; x<10; ++x) {
+                GLfloat cell_location[16] = {0.14,0,0,0, 0,0.14,0,0, 0,0,0,0, 0.005f + 1.5f*(x-5)/10.0f,-y/10.0f*1.5f,-0.6,1};
+                glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, cell_location);
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+            }
+        }
+#endif
+    }
+
+
     GLenum err = glGetError();
     if (err != GL_NO_ERROR) {
         printf("***  GL errors standing in your way\n");
@@ -567,6 +617,61 @@ void Scene::render(const float *pos, const float *look, double tick) {
 
 void init_opengl_objects() {
     GLuint tempBufID;
+
+    // inventory place card
+    glGenVertexArrays(1, &inventory_cells_va);
+    glBindVertexArray(inventory_cells_va);
+    GLfloat *cells_data = new GLfloat[2 * 4*5*10];   // 2 coords, 4 vertexes to a square, 5 rows of 10 columns
+    GLint *cells_indexes = new GLint[6*5*10];   // 6 edges to a square with zero width lines to next square, 5 rows of 10 columns
+
+    for (int y=0; y<5; ++y) {
+        for (int x=0; x<10; ++x) {
+            cells_data[(x+y*10)*8+0] = 0.005f + 1.5f*(x-5)/10.0f;
+            cells_data[(x+y*10)*8+1] = -y/10.0f*1.5f;
+
+            cells_data[(x+y*10)*8+2] = 0.005f + 1.5f*(x-5)/10.0f+0.14;
+            cells_data[(x+y*10)*8+3] = -y/10.0f*1.5f;
+
+            cells_data[(x+y*10)*8+4] = 0.005f + 1.5f*(x-5)/10.0f;
+            cells_data[(x+y*10)*8+5] = -y/10.0f*1.5f+0.14;
+
+            cells_data[(x+y*10)*8+6] = 0.005f + 1.5f*(x-5)/10.0f + 0.14;
+            cells_data[(x+y*10)*8+7] = -y/10.0f*1.5f + 0.14;
+        }
+    }
+
+    for (int y=0; y<5; ++y) {
+        for (int x=0; x<10; ++x) {
+            cells_indexes[(x+y*10)*6+0] = (x+y*10)*4;
+            cells_indexes[(x+y*10)*6+1] = (x+y*10)*4;
+            cells_indexes[(x+y*10)*6+2] = (x+y*10)*4+1;
+            cells_indexes[(x+y*10)*6+3] = (x+y*10)*4+2;
+            cells_indexes[(x+y*10)*6+4] = (x+y*10)*4+3;
+            cells_indexes[(x+y*10)*6+5] = (x+y*10)*4+3;
+        }
+    }
+
+    glGenBuffers(1, &tempBufID);
+    glBindBuffer(GL_ARRAY_BUFFER, tempBufID);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat)*2*4*5*10, cells_data, GL_STATIC_DRAW);
+
+    glGenBuffers(1, &tempBufID);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tempBufID);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLint)*6*5*10, cells_indexes, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(
+        0,  // attribute 0.
+        2,  // size
+        GL_FLOAT,   // type
+        GL_FALSE,   // normalized?
+        2 * sizeof(GLfloat),  // stride
+        (void*)0 // array buffer offset
+    );
+    glEnableVertexAttribArray(0);
+    delete cells_data;
+    delete cells_indexes;
+
+
 
 //    GLuint SquareTexturedVA;
     glGenVertexArrays(1, &SquareTexturedVA);
