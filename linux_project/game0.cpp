@@ -56,6 +56,14 @@ static inline bool is_blocking(uint32_t gridElement) {
     return false;
 }
 
+
+static inline void my_assign(GLfloat *a, std::initializer_list<float> c) {
+    for (size_t i=0; i<c.size(); ++i) {
+        a[i] = *(c.begin()+i);
+    }
+}
+
+
 //#############################################################################
 
 struct MovementInputState {
@@ -106,7 +114,7 @@ struct moving_object {
     void update(double tick) {
 
         if (_activated) {
-            if (tick - _start_tick > 20) {
+            if (tick - _start_tick > 40) {
                 _activated = false;
             } else {
                 _posx += _vx;
@@ -149,7 +157,7 @@ struct Player {
     float _eyeHeight = 1.5f;
     float _pos[3] = { 1,1,0 };
     float _facing = 45 * 3.14159f / 180;    // radians left/right around player axis
-    float _facingUpDown = -45 * 3.14159f / 180;    // radians up/down with player eyes as level zero
+    float _facingUpDown = 0;//-15 * 3.14159f / 180;    // radians up/down with player eyes as level zero
 
                                                    // velocities
     float _upV = 0; // negative is down
@@ -559,7 +567,6 @@ std::map<uint32_t, Texture*> textureDict;
 Texture *monsterTex;
 Texture *crosshairsTex;
 
-
 struct Scene {
     float _ratio;
 
@@ -599,47 +606,65 @@ void Scene::render(const float *pos, const float *look) {
         glActiveTexture(GL_TEXTURE0);
         glUniform1i(textureShader->samplerID, 0);
         GLfloat finalMat[16];
+        GLfloat location_mat[16];
         for (int y = 0; y < 10; ++y) {
             for (int x = 0; x < 10; ++x) {
                 textureDict[grid[y][x]]->bind();
                 if (!is_blocking(grid[y][x])) {
                     // draw floor for non-blocking spaces
-                    GLfloat locationMat[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, (GLfloat)x,(GLfloat)y,0,1 };
-                    matmul(MVP, locationMat, finalMat);
+                    my_assign(location_mat, { 1,0,0,0, 0,1,0,0, 0,0,1,0, (GLfloat)x,(GLfloat)y,0,1 });
+                    matmul(MVP, location_mat, finalMat);
                     glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
                     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
-                }
-
-                if (is_blocking(grid[y][x])) {
+                } else {
                     if (y>0 && !is_blocking(grid[y-1][x])) {
                         // only draw South face if there is an non-blocking element to the south
-                        GLfloat locationMat[16] = { -1,0,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x + 1,(GLfloat)y,0,1 };
-                        matmul(MVP, locationMat, finalMat);
+                        my_assign(location_mat, { -1,0,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x + 1,(GLfloat)y,0,1 });
+                        matmul(MVP, location_mat, finalMat);
+                        glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
+
+                        location_mat[14]++;
+                        matmul(MVP, location_mat, finalMat);
                         glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
                         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
                     }
                     if (y < 9 && !is_blocking(grid[y+1][x])) {
                         // only draw South face if there is an non-blocking element to the north
-                        GLfloat locationMat[16] = { 1,0,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x,(GLfloat)y + 1,0,1 };
-                        matmul(MVP, locationMat, finalMat);
+                        my_assign(location_mat, { 1,0,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x,(GLfloat)y + 1,0,1 });
+                        matmul(MVP, location_mat, finalMat);
+                        glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
+
+                        location_mat[14]++;
+                        matmul(MVP, location_mat, finalMat);
                         glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
                         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
                     }
 
                     if (x > 0 && !is_blocking(grid[y][x-1])) {
-                        GLfloat locationMat[16] = { 0,1,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x,(GLfloat)y,0,1 };
-                        matmul(MVP, locationMat, finalMat);
+                        my_assign(location_mat, { 0,1,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x,(GLfloat)y,0,1 });
+                        matmul(MVP, location_mat, finalMat);
+                        glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
+
+                        location_mat[14]++;
+                        matmul(MVP, location_mat, finalMat);
                         glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
                         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
                     }
 
                     if (x < 9 && !is_blocking(grid[y][x+1])) {
-                        GLfloat locationMat[16] = { 0,-1,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x + 1,(GLfloat)y + 1,0,1 };
-                        matmul(MVP, locationMat, finalMat);
+                        my_assign(location_mat, { 0,-1,0,0, 0,0,1,0, 0,0,0,0, (GLfloat)x + 1,(GLfloat)y + 1,0,1 });
+                        matmul(MVP, location_mat, finalMat);
+                        glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
+
+                        location_mat[14]++;
+                        matmul(MVP, location_mat, finalMat);
                         glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, finalMat);
                         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
                     }
-
                 }
             }
         }
