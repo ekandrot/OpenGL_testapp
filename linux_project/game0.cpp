@@ -25,6 +25,8 @@ GLsizeiptr sizeof_roach_data;
 GLsizeiptr sizeof_roach_indexes;
 int count_roach_indexes;
 
+double tick = 0;
+
 const float CURSOR_SIZE = 0.05;
 
 //#############################################################################
@@ -77,6 +79,50 @@ struct Game {
     float _cursor_y;
 };
 Game gGame;
+
+//#############################################################################
+
+struct moving_object {
+    moving_object() : _activated(false) {}
+
+    void activate(float x, float y, float z, float vx, float vy, float vz) {
+        if (!_activated) {
+            float d = sqrt(vx*vx + vy*vy + vz*vz);
+            vx /= d;
+            vy /= d;
+            vz /= d;
+
+            _activated = true;
+            _start_tick = tick;
+            _posx = x;
+            _posy = y;
+            _posz = z;
+            _vx = vx * 0.15f;
+            _vy = vy * 0.15f;
+            _vz = vz * 0.15f;
+        }
+    }
+
+    void update(double tick) {
+
+        if (_activated) {
+            if (tick - _start_tick > 20) {
+                _activated = false;
+            } else {
+                _posx += _vx;
+                _posy += _vy;
+                _posz += _vz;
+            }
+        } 
+    }
+
+    bool _activated;
+    double _start_tick; 
+    float _posx, _posy, _posz;
+    float _vx, _vy, _vz;
+};
+
+moving_object missile;
 
 //#############################################################################
 
@@ -419,6 +465,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                 }
             }
             break;
+
         default:
             break;
     }
@@ -446,6 +493,12 @@ static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
 //  *  @param[in] action   One of `GLFW_PRESS` or `GLFW_RELEASE`.
 static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     if (button == 0 && action == GLFW_PRESS) {
+            if (action == GLFW_PRESS) {
+                float pos[3], look[3];
+                player.get_eye_pos(pos);
+                player.get_eye_look(look);
+                missile.activate(pos[0], pos[1], pos[2], look[0]-pos[0], look[1]-pos[1], look[2]-pos[2]);
+            }
     }
 }
 
@@ -496,13 +549,15 @@ static void shutdown_glfw(GLFWwindow *window) {
     exit(EXIT_SUCCESS);
 }
 //#############################################################################
-GLuint CubeID;
+GLuint cube_id;
 GLuint SquareTexturedVA;
+GLuint roach_id;
 GLuint inventory_cells_va;
 TextureShader *textureShader;
 FixedColorShader *colorShader;
 std::map<uint32_t, Texture*> textureDict;
 Texture *monsterTex;
+Texture *crosshairsTex;
 
 
 struct Scene {
@@ -510,10 +565,10 @@ struct Scene {
 
     Scene(float ratio) : _ratio(ratio) {}
 
-    void render(const float *pos, const float *look, double tick);
+    void render(const float *pos, const float *look);
 };
 
-void Scene::render(const float *pos, const float *look, double tick) {
+void Scene::render(const float *pos, const float *look) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     float MVP[16], view[16], projection[16];
@@ -523,7 +578,7 @@ void Scene::render(const float *pos, const float *look, double tick) {
 
     // draw monsters!
     {
-        glBindVertexArray(CubeID);
+        glBindVertexArray(roach_id);
         colorShader->use();
         //glActiveTexture(GL_TEXTURE0);
         glUniform3f(colorShader->colorID, 166/255.0, 123/255.0, 91/255.0);
@@ -590,6 +645,19 @@ void Scene::render(const float *pos, const float *look, double tick) {
         }
     }
 
+    if (missile._activated) {
+        glBindVertexArray(cube_id);
+        colorShader->use();
+        //glActiveTexture(GL_TEXTURE0);
+        glUniform3f(colorShader->colorID, 166/255.0, 23/255.0, 91/255.0);
+        GLfloat model[16] = { 0.1,0,0,0, 0,0.1,0,0, 0,0,0.1,0, missile._posx,missile._posy,missile._posz,1 };
+        GLfloat squareMVP[16];
+        matmul(MVP, model, squareMVP);
+        glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, squareMVP);
+        glDrawElements(GL_QUADS, 24, GL_UNSIGNED_INT, nullptr);
+    }
+
+
     // should we render player's inventory over the game screen?
     if (gGame._mode == Inventory) {
         glBindVertexArray(SquareTexturedVA);
@@ -615,7 +683,33 @@ void Scene::render(const float *pos, const float *look, double tick) {
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
     } else {
         // draw crosshairs in play mode?
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glBindVertexArray(SquareTexturedVA);
+        textureShader->use();
+        glActiveTexture(GL_TEXTURE0);
+        glUniform1i(textureShader->samplerID, 0);
+        crosshairsTex->bind();
+        GLfloat model[16] = { 0.1,0,0,0, 0,0.1,0,0, 0,0,0,0, -0.05,-0.05,0,1};
+        glUniformMatrix4fv(textureShader->matrixID, 1, GL_FALSE, model);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr); // 3 vertex per triangle
+        glDisable(GL_BLEND);
     }
+
+    // draw the "always on" action bar
+    glBindVertexArray(SquareTexturedVA);
+    colorShader->use();
+    glUniform3f(colorShader->colorID, 166/255.0, 166/255.0, 166/255.0);
+    GLfloat model[16] = { 1.5,0,0,0, 0,0.15,0,0, 0,0,0,0, -0.75,-0.95,-0.5,1 };
+    glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, model);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+
+    glBindVertexArray(inventory_cells_va);
+    colorShader->use();
+    glUniform3f(colorShader->colorID, 0, 0, 0);
+    GLfloat model_cells[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,-0.95+0.005,-0.51,1 };
+    glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, model_cells);
+    glDrawElements(GL_TRIANGLE_STRIP, 6*1*10, GL_UNSIGNED_INT, nullptr);
 
 
     GLenum err = glGetError();
@@ -723,13 +817,34 @@ void init_opengl_objects() {
     glEnableVertexAttribArray(1);
 
 
-//    GLuint CubeID;
-    glGenVertexArrays(1, &CubeID);
-    glBindVertexArray(CubeID);
-//    GLfloat cubeData[12 * 5] = {
-//        0,0,0, 0,0,  0,1,0, 1,0,  0,1,1, 1,1,  0,0,1, 0,1,  1,1,0, 0,0,  1,1,1, 0,1,  1,0,0, 1,0,  1,0,1, 1,1,
-//        1,0,1, 0,0,  0,0,1, 1,0,  1,0,0, 0,1,  0,0,0, 1,1 };
-//    GLint cubeIndexes[8 * 4] = { 0,1,2,3, 1,4,5,2, 4,6,7,5, 6,0,3,7, 2,5,8,9, 1,4,10,11 };
+    glGenVertexArrays(1, &cube_id);
+    glBindVertexArray(cube_id);
+    GLfloat cube_data[12 * 5] = {
+        0,0,0, 0,0,  0,1,0, 1,0,  0,1,1, 1,1,  0,0,1, 0,1,  1,1,0, 0,0,  1,1,1, 0,1,  1,0,0, 1,0,  1,0,1, 1,1,
+        1,0,1, 0,0,  0,0,1, 1,0,  1,0,0, 0,1,  0,0,0, 1,1 };
+    GLint cube_indexes[6 * 4] = { 0,1,2,3, 1,4,5,2, 4,6,7,5, 6,0,3,7, 2,5,8,9, 1,4,10,11 };
+
+    glGenBuffers(1, &tempBufID);
+    glBindBuffer(GL_ARRAY_BUFFER, tempBufID);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(cube_data), cube_data, GL_STATIC_DRAW);
+
+    glGenBuffers(1, &tempBufID);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tempBufID);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cube_indexes), cube_indexes, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(
+        0,  // attribute 0.
+        3,  // size
+        GL_FLOAT,   // type
+        GL_FALSE,   // normalized?
+        5 * sizeof(GLfloat),  // stride
+        (void*)0 // array buffer offset
+    );
+    glEnableVertexAttribArray(0);
+
+
+    glGenVertexArrays(1, &roach_id);
+    glBindVertexArray(roach_id);
 
     glGenBuffers(1, &tempBufID);
     glBindBuffer(GL_ARRAY_BUFFER, tempBufID);
@@ -775,6 +890,7 @@ void init_opengl_objects() {
     textureDict[1] = new Texture("textures/wall_0.jpg");
     textureDict[1024] = new Texture("textures/dirt_floor_0.png");
     monsterTex = new Texture("textures/dummy_0.jpg");
+    crosshairsTex = new Texture("textures/crosshairs_0.png");
 
     glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
     glEnable(GL_DEPTH_TEST);
@@ -925,15 +1041,15 @@ int main(void) {
     Scene scene(ratio);
 
 //    clock_t startTime = clock(); //Start timer
-    double tick = 0;
     while (!glfwWindowShouldClose(window)) {
         tick += 1;
+        missile.update(tick);
         float pos[3];
         float look[3];
         player.update_eye_pos();
         player.get_eye_pos(pos);
         player.get_eye_look(look);  // get eye so we know which direction forward is
-        scene.render(pos, look, tick);
+        scene.render(pos, look);
 
         // on the latest Ubuntu with the latest GLFW, I'm seeing key sequences:
         //  press, repeat, release, press, repeat, release - when there was only one press/release
