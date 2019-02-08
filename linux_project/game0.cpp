@@ -25,6 +25,8 @@ GLsizeiptr sizeof_roach_data;
 GLsizeiptr sizeof_roach_indexes;
 int count_roach_indexes;
 
+const float CURSOR_SIZE = 0.05;
+
 //#############################################################################
 
 const GLfloat GRAVITY = -0.001f;
@@ -68,9 +70,11 @@ MovementInputState gMovementInputState;
 //#############################################################################
 
 struct Game {
-    Game() : _mode(Playing) {}
+    Game() : _mode(Playing), _cursor_x(0), _cursor_y(0) {}
 
     GameMode _mode;
+    float _cursor_x;
+    float _cursor_y;
 };
 Game gGame;
 
@@ -420,15 +424,23 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     }
 }
 
-
 static double xposPrev, yposPrev;   // gets initialized in init_glfw()
 const GLfloat SCALED_MOUSE_MOVEMENT = 0.001f;
 static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
-    GLfloat elevationDelta = (GLfloat)(ypos - yposPrev) * SCALED_MOUSE_MOVEMENT;
-    GLfloat rotationDelta = (GLfloat)(xpos - xposPrev) * SCALED_MOUSE_MOVEMENT;
+    if (gGame._mode == Inventory) {
+        gGame._cursor_x += (GLfloat)(xpos - xposPrev) * SCALED_MOUSE_MOVEMENT;
+        gGame._cursor_y -= (GLfloat)(ypos - yposPrev) * SCALED_MOUSE_MOVEMENT;
+        if (gGame._cursor_x < -0.75) gGame._cursor_x = -0.75;
+        else if (gGame._cursor_x > 0.75-CURSOR_SIZE) gGame._cursor_x = 0.75-CURSOR_SIZE;
+        if (gGame._cursor_y < -0.75) gGame._cursor_y = -0.75;
+        else if (gGame._cursor_y > 0.75-CURSOR_SIZE) gGame._cursor_y = 0.75-CURSOR_SIZE;
+    } else {
+        GLfloat elevationDelta = (GLfloat)(ypos - yposPrev) * SCALED_MOUSE_MOVEMENT;
+        GLfloat rotationDelta = (GLfloat)(xpos - xposPrev) * SCALED_MOUSE_MOVEMENT;
+        player.update_gaze(elevationDelta, rotationDelta);
+    }
     yposPrev = ypos;
     xposPrev = xpos;
-    player.update_gaze(elevationDelta, rotationDelta);
 }
 
 //  *  @param[in] action   One of `GLFW_PRESS` or `GLFW_RELEASE`.
@@ -593,15 +605,16 @@ void Scene::render(const float *pos, const float *look, double tick) {
         GLfloat model_cells[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,-0.51,1 };
         glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, model_cells);
         glDrawElements(GL_TRIANGLE_STRIP, 6*5*10, GL_UNSIGNED_INT, nullptr);
-#if 0
-        for (int y=0; y<5; ++y) {
-            for (int x=0; x<10; ++x) {
-                GLfloat cell_location[16] = {0.14,0,0,0, 0,0.14,0,0, 0,0,0,0, 0.005f + 1.5f*(x-5)/10.0f,-y/10.0f*1.5f,-0.6,1};
-                glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, cell_location);
-                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
-            }
-        }
-#endif
+
+        // draw a cursor in inventory mode
+        glBindVertexArray(SquareTexturedVA);
+        colorShader->use();
+        glUniform3f(colorShader->colorID, 255/255.0, 166/255.0, 166/255.0);
+        GLfloat model_cursor[16] = { CURSOR_SIZE,0,0,0, 0,CURSOR_SIZE,0,0, 0,0,0,0, gGame._cursor_x,gGame._cursor_y,-0.52,1 };
+        glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, model_cursor);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+    } else {
+        // draw crosshairs in play mode?
     }
 
 
