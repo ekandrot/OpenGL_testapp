@@ -8,13 +8,12 @@
 #include <map>
 #include <algorithm>
 #include <string>
-#include <GL/glew.h>
 #include "shaders.h"
 #include "texture.h"
 #include "maths.h"
 
-#define GLFW_INCLUDE_GLU
-#define GLFW_INCLUDE_GLEXT
+//#define GLFW_INCLUDE_GLU
+//#define GLFW_INCLUDE_GLEXT
 #include <GLFW/glfw3.h>
 
 
@@ -24,8 +23,6 @@ GLint *roach_indexes;
 GLsizeiptr sizeof_roach_data;
 GLsizeiptr sizeof_roach_indexes;
 int count_roach_indexes;
-
-double tick = 0;
 
 const float CURSOR_SIZE = 0.05;
 
@@ -101,31 +98,38 @@ struct moving_object {
             vz /= d;
 
             _activated = true;
-            _start_tick = tick;
+            _ttl = 40;
             _posx = x;
             _posy = y;
             _posz = z;
             _vx = vx * 0.15f;
             _vy = vy * 0.15f;
             _vz = vz * 0.15f;
+
+            _updates = 0;
         }
     }
 
     void update(double tick) {
 
         if (_activated) {
-            if (tick - _start_tick > 40) {
+            _updates++;
+            _ttl -= tick;
+            if (_ttl <= 0) {
                 _activated = false;
+                /* debugging timing*/
+                //printf("was updated %d times\n", _updates);
             } else {
-                _posx += _vx;
-                _posy += _vy;
-                _posz += _vz;
+                _posx += _vx*tick;
+                _posy += _vy*tick;
+                _posz += _vz*tick;
             }
         } 
     }
 
+    int _updates;
     bool _activated;
-    double _start_tick; 
+    double _ttl; 
     float _posx, _posy, _posz;
     float _vx, _vy, _vz;
 };
@@ -138,18 +142,18 @@ struct Player {
 
     Player();
 
-    void update_eye_pos();
+    void update_eye_pos(double time_delta);
     void get_eye_look(float *look) const;
     void get_eye_pos(float *look) const;
 
     void update_gaze(GLfloat elevationDelta, GLfloat rotationDelta);
     void update_movement(const MovementInputState &movementInputState);
     void update_velocities(int forwardMotion, int sidewaysMotion, int upMotion);
-    void update_pos(const GLfloat* look);
+    void update_pos(const GLfloat* look, double time_delta);
 
-    void update_pos_onground(const GLfloat* look);
-    void update_pos_falling(const GLfloat* look);
-    void update_pos_flying(const GLfloat* look);
+    void update_pos_onground(const GLfloat* look, double time_delta);
+    void update_pos_falling(const GLfloat* look, double time_delta);
+    void update_pos_flying(const GLfloat* look, double time_delta);
     
     // position and view within the world
     bool _crouching = false;
@@ -169,7 +173,7 @@ struct Player {
 
 static Player player;
 
-void Player::update_pos_onground(const GLfloat* look) {
+void Player::update_pos_onground(const GLfloat* look, double time_delta) {
     // estimate a new position for the player
     // newpos is based on:
     //   if player has a velocity, reduce it by the blocktype
@@ -182,9 +186,9 @@ void Player::update_pos_onground(const GLfloat* look) {
     GLfloat Z[3] = { look[0] - _pos[0], look[1] - _pos[1], 0 }; //, look[2] - pos[2]};
     normalize(Z);
     GLfloat newPos[3];
-    newPos[0] = _pos[0] + Z[0] * _forwardV - Z[1] * _rightV;
-    newPos[1] = _pos[1] + Z[1] * _forwardV + Z[0] * _rightV;
-    newPos[2] = _pos[2] + _upV;
+    newPos[0] = _pos[0] + (Z[0] * _forwardV - Z[1] * _rightV) * time_delta;
+    newPos[1] = _pos[1] + (Z[1] * _forwardV + Z[0] * _rightV) * time_delta;
+    newPos[2] = _pos[2] + _upV * time_delta;
 
     bool validMove = false;
     // check falling off grid
@@ -236,7 +240,7 @@ void Player::update_pos_onground(const GLfloat* look) {
     //facing += rotationV;        // need to include a timestamp to handle fps correctly
 }
 
-void Player::update_pos_falling(const GLfloat* look) {
+void Player::update_pos_falling(const GLfloat* look, double time_delta) {
     _upV += GRAVITY;
 
     GLfloat Z[3] = { look[0] - _pos[0], look[1] - _pos[1], 0 }; //, look[2] - pos[2]};
@@ -280,7 +284,7 @@ void Player::update_pos_falling(const GLfloat* look) {
     //facing += rotationV;        // need to include a timestamp to handle fps correctly
 }
 
-void Player::update_pos_flying(const GLfloat* look) {
+void Player::update_pos_flying(const GLfloat* look, double time_delta) {
     GLfloat Z[3] = { look[0] - _pos[0], look[1] - _pos[1], 0 }; //, look[2] - pos[2]};
     normalize(Z);
     GLfloat newPos[3];
@@ -300,16 +304,16 @@ void Player::update_pos_flying(const GLfloat* look) {
 /*
 *   First calculate where we are, then the direction we are looking from that position
 */
-void Player::update_pos(const GLfloat* look) {
+void Player::update_pos(const GLfloat* look, double time_delta) {
     switch (_movementState) {
         case OnGround:
-            update_pos_onground(look);
+            update_pos_onground(look, time_delta);
             break;
         case Falling:
-            update_pos_falling(look);
+            update_pos_falling(look, time_delta);
             break;
         case Flying:
-            update_pos_flying(look);
+            update_pos_flying(look, time_delta);
             break;
         default:
             break;
@@ -321,7 +325,7 @@ void Player::update_pos(const GLfloat* look) {
 Player::Player() {
 }
 
-void Player::update_eye_pos() {
+void Player::update_eye_pos(double time_delta) {
     if (_crouching) {
         if (_eyeHeight > 0.25) {
             _eyeHeight -= 0.01;
@@ -511,7 +515,7 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 }
 
 static void error_callback(int error, const char* description) {
-    fputs(description, stderr);
+    fprintf(stderr, "*** GLFW Error: %s\n", description);
 }
 
 //#############################################################################
@@ -589,6 +593,7 @@ void Scene::render(const float *pos, const float *look) {
         colorShader->use();
         //glActiveTexture(GL_TEXTURE0);
         glUniform3f(colorShader->colorID, 166/255.0, 123/255.0, 91/255.0);
+        float tick = 0; // timing stuff shouldn't be in the render loop
         float monster_x = 7.25 + sin(tick/100);
         float monster_y = 3.25 + cos(tick/100);
         GLfloat model[16] = { 0.5,0,0,0, 0,0.5,0,0, 0,0,0.5,0, (float)monster_x,monster_y,0.25,1 };
@@ -1046,9 +1051,9 @@ void load_model(const char *file_name) {
 
 //#############################################################################
 
-void update_object_locations(float *look) {
+void update_object_locations(float *look, double time_delta) {
     player.update_movement(gMovementInputState);
-    player.update_pos(look);
+    player.update_pos(look, time_delta);
 }
 
 int main(void) {
@@ -1065,29 +1070,35 @@ int main(void) {
     glViewport(0, 0, width, height);
     Scene scene(ratio);
 
-//    clock_t startTime = clock(); //Start timer
+    // number of seconds since initialization
+    double time_start = glfwGetTime();
+    double time_prev = time_start;
     while (!glfwWindowShouldClose(window)) {
-        tick += 1;
-        missile.update(tick);
         float pos[3];
         float look[3];
-        player.update_eye_pos();
         player.get_eye_pos(pos);
         player.get_eye_look(look);  // get eye so we know which direction forward is
         scene.render(pos, look);
 
-        // on the latest Ubuntu with the latest GLFW, I'm seeing key sequences:
-        //  press, repeat, release, press, repeat, release - when there was only one press/release
-        //  there was a bug that was fixed that was supposed to fix this, but I'm still seeing it.
-        //  it is from event polling not being called frequently enough.
-        //  I found by adding these 4 calls to poll events here, it minimizes this bug.
-        //  revisit when https://github.com/glfw/glfw/issues/747 is truly fixed.  05/12/2017
-        glfwPollEvents();
-        glfwPollEvents();
-        glfwPollEvents();
+
         glfwSwapBuffers(window);
+        // the above waits for one screen update, then returns for us to fill in the back buffer
+        // so our event processing and in game time is tied to vsync... which isn't what we really want
+
+        // get the wrong sequence of keys with glfw, unless called multiple times
+        // redcuing this to one call, after repeat happens, get an extra Press on Release
         glfwPollEvents();
-        update_object_locations(look);
+        glfwPollEvents();
+        glfwPollEvents();
+        glfwPollEvents();
+
+        double time = glfwGetTime();
+        double time_delta = 100*(time - time_prev); // convert this to number of ticks?
+        time_prev = time;
+
+        missile.update(time_delta);
+        player.update_eye_pos(time_delta);
+        update_object_locations(look, time_delta);
     }
     shutdown_glfw(window);
 }
