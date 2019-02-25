@@ -1,3 +1,7 @@
 {
-    "files.autoGuessEncoding": true
+    "files.autoGuessEncoding": true,
+    "files.associations": {
+        "cstdlib": "cpp",
+        "cstdint": "cpp"
+    }
 }

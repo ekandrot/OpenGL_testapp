@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <ctime>
 #include <cstdlib>
-#include <math.h>
+#include <cmath>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -16,6 +16,8 @@
 //#define GLFW_INCLUDE_GLEXT
 #include <GLFW/glfw3.h>
 
+#include "constants.h"
+#include "player.h"
 
 
 GLfloat *roach_data;
@@ -28,17 +30,6 @@ const float CURSOR_SIZE = 0.05;
 
 //#############################################################################
 
-const GLfloat GRAVITY = -0.001f;
-const GLfloat MAX_STEP_HEIGHT = 0.55f;
-
-enum MovementState {
-    OnGround,
-    Falling,
-    Flying,
-    Swimming,
-    God,
-};
-
 enum GameMode {
     Playing,
     Inventory,
@@ -47,11 +38,6 @@ enum GameMode {
 //#############################################################################
 
 uint32_t grid[10][10];
-
-static inline bool is_blocking(uint32_t gridElement) {
-    if (gridElement < 1024) return true;
-    return false;
-}
 
 
 static inline void my_assign(GLfloat *a, std::initializer_list<float> c) {
@@ -138,289 +124,29 @@ moving_object missile;
 
 //#############################################################################
 
-struct Player {
+struct block_object {
+    block_object() : x_(3), y_(3), z_(3), falling_(true) {}
 
-    Player();
+    void update(double tick) {
+        if (falling_) {
+            z_ += vz_ * tick;
+            vz_ += GRAVITY * tick;
+            if (z_ <= 0) {
+                z_ = 0;
+                vz_ = 0;
+                falling_ = false;
+            }
+        } 
+    }
 
-    void update_eye_pos(double time_delta);
-    void get_eye_look(float *look) const;
-    void get_eye_pos(float *look) const;
-
-    void update_gaze(GLfloat elevationDelta, GLfloat rotationDelta);
-    void update_movement(const MovementInputState &movementInputState);
-    void update_velocities(int forwardMotion, int sidewaysMotion, int upMotion);
-    void update_pos(const GLfloat* look, double time_delta);
-
-    void update_pos_onground(const GLfloat* look, double time_delta);
-    void update_pos_falling(const GLfloat* look, double time_delta);
-    void update_pos_flying(const GLfloat* look, double time_delta);
-    
-    // position and view within the world
-    bool _crouching = false;
-    bool _running = false;
-    float _eyeHeight = 1.5f;
-    float _pos[3] = { 1,1,0 };
-    float _facing = 45 * 3.14159f / 180;    // radians left/right around player axis
-    float _facingUpDown = 0;//-15 * 3.14159f / 180;    // radians up/down with player eyes as level zero
-
-                                                   // velocities
-    float _upV = 0; // negative is down
-    float _rightV = 0;  // negative is left
-    float _forwardV = 0; // negative is backwards
-    MovementState _movementState = OnGround;
+    float x_, y_, z_;
+    float vx_, vy_, vz_;
+    bool falling_;
 };
 
-
-static Player player;
-
-void Player::update_pos_onground(const GLfloat* look, double time_delta) {
-    // estimate a new position for the player
-    // newpos is based on:
-    //   if player has a velocity, reduce it by the blocktype
-    // does newpos put player into a new tile?  if so:
-    //   would he now be falling?
-    //   is the height difference acceptable?
-    // if still onground, update velocity by keys pressed
-    // accept newpos if it is valid
-
-    GLfloat Z[3] = { look[0] - _pos[0], look[1] - _pos[1], 0 }; //, look[2] - pos[2]};
-    normalize(Z);
-    GLfloat newPos[3];
-    newPos[0] = _pos[0] + (Z[0] * _forwardV - Z[1] * _rightV) * time_delta;
-    newPos[1] = _pos[1] + (Z[1] * _forwardV + Z[0] * _rightV) * time_delta;
-    newPos[2] = _pos[2] + _upV * time_delta;
-
-    bool validMove = false;
-    // check falling off grid
-
-    // the indexes of where we are on the grid
-    int ix = (int)_pos[0];
-    int iy = (int)_pos[1];
-
-    // check for walls where we are, and prevent moving through them
-    if (is_blocking(grid[iy][ix-1])) {
-        newPos[0] = std::max(newPos[0], ix + 0.15f);
-    }
-    if (is_blocking(grid[iy][ix+1])) {
-        newPos[0] = std::min(newPos[0], ix + 0.85f);
-    }
-    if (is_blocking(grid[iy-1][ix])) {
-        newPos[1] = std::max(newPos[1], iy + 0.15f);
-    }
-    if (is_blocking(grid[iy+1][ix])) {
-        newPos[1] = std::min(newPos[1], iy + 0.85f);
-    }
-
-    // make sure we stay within the grid, overall
-    newPos[0] = std::max(0.15f, std::min(9.85f, newPos[0]));
-    newPos[1] = std::max(0.15f, std::min(9.85f, newPos[1]));
-
-  /*  if ((newPos[0] <= 0) || (newPos[0] >= 10) || (newPos[1] <= 0) || (newPos[1] >= 10)) {
-        //playerState = Falling;
-        //validMove = true;
-    } else */{
-        //printf("%d, %d\n", (int)(newPos[0]*5 + 5), (int)(newPos[1]*5 + 5));
-        float groundHeight = 0;
-        float myHeight = newPos[2];
-        if (groundHeight - myHeight <= MAX_STEP_HEIGHT) {
-            validMove = true;
-            if (newPos[2] <= groundHeight) {
-                newPos[2] = groundHeight;
-            } else if (newPos[2] > groundHeight) {
-                _movementState = Falling;
-            }
-        }
-    }
-
-    if (validMove) {
-        _pos[0] = newPos[0];
-        _pos[1] = newPos[1];
-        _pos[2] = newPos[2];
-    }
-    //facing += rotationV;        // need to include a timestamp to handle fps correctly
-}
-
-void Player::update_pos_falling(const GLfloat* look, double time_delta) {
-    _upV += GRAVITY;
-
-    GLfloat Z[3] = { look[0] - _pos[0], look[1] - _pos[1], 0 }; //, look[2] - pos[2]};
-    normalize(Z);
-    GLfloat newPos[3];
-    newPos[0] = _pos[0] + Z[0] * _forwardV - Z[1] * _rightV;
-    newPos[1] = _pos[1] + Z[1] * _forwardV + Z[0] * _rightV;
-    newPos[2] = _pos[2] + _upV;
-
-    // the indexes of where we are on the grid
-    int ix = (int)_pos[0];
-    int iy = (int)_pos[1];
-
-    // check for walls where we are, and prevent moving through them
-    if (is_blocking(grid[iy][ix - 1])) {
-        newPos[0] = std::max(newPos[0], ix + 0.15f);
-    }
-    if (is_blocking(grid[iy][ix + 1])) {
-        newPos[0] = std::min(newPos[0], ix + 0.85f);
-    }
-    if (is_blocking(grid[iy - 1][ix])) {
-        newPos[1] = std::max(newPos[1], iy + 0.15f);
-    }
-    if (is_blocking(grid[iy + 1][ix])) {
-        newPos[1] = std::min(newPos[1], iy + 0.85f);
-    }
-
-    float groundHeight = 0;
-    if (newPos[2] < groundHeight) {
-        newPos[2] = groundHeight;
-        _upV = 0;
-        _movementState = OnGround;
-    }
-
-    bool validMove = true;
-    if (validMove) {
-        _pos[0] = newPos[0];
-        _pos[1] = newPos[1];
-        _pos[2] = newPos[2];
-    }
-    //facing += rotationV;        // need to include a timestamp to handle fps correctly
-}
-
-void Player::update_pos_flying(const GLfloat* look, double time_delta) {
-    GLfloat Z[3] = { look[0] - _pos[0], look[1] - _pos[1], 0 }; //, look[2] - pos[2]};
-    normalize(Z);
-    GLfloat newPos[3];
-    newPos[0] = _pos[0] + Z[0] * _forwardV - Z[1] * _rightV;
-    newPos[1] = _pos[1] + Z[1] * _forwardV + Z[0] * _rightV;
-    newPos[2] = _pos[2] + _upV;
-
-    bool validMove = true;
-    if (validMove) {
-        _pos[0] = newPos[0];
-        _pos[1] = newPos[1];
-        _pos[2] = newPos[2];
-    }
-    //facing += rotationV;        // need to include a timestamp to handle fps correctly
-}
-
-/*
-*   First calculate where we are, then the direction we are looking from that position
-*/
-void Player::update_pos(const GLfloat* look, double time_delta) {
-    switch (_movementState) {
-        case OnGround:
-            update_pos_onground(look, time_delta);
-            break;
-        case Falling:
-            update_pos_falling(look, time_delta);
-            break;
-        case Flying:
-            update_pos_flying(look, time_delta);
-            break;
-        default:
-            break;
-    }
-}
+block_object falling_cube;
 
 
-
-Player::Player() {
-}
-
-void Player::update_eye_pos(double time_delta) {
-    if (_crouching) {
-        if (_eyeHeight > 0.25) {
-            _eyeHeight -= 0.01;
-        } else {
-            _eyeHeight = 0.25;
-        }
-    } else {
-        if (_eyeHeight < 0.75) {
-            _eyeHeight += 0.01;
-        } else {
-            _eyeHeight = 0.75;
-        }
-    }
-}
-
-void Player::get_eye_look(float *look) const {
-    look[0] = _pos[0] + cosf(_facingUpDown) * cosf(_facing);
-    look[1] = _pos[1] + cosf(_facingUpDown) * sinf(_facing);
-    look[2] = _pos[2] + sinf(_facingUpDown) + _eyeHeight;
-}
-
-void Player::get_eye_pos(float *pos) const {
-    pos[0] = _pos[0];
-    pos[1] = _pos[1];
-    pos[2] = _pos[2] +_eyeHeight;
-}
-
-void Player::update_velocities(int forwardMotion, int sidewaysMotion, int upMotion) {
-    const double maxSpeed = 2*(_crouching ? 0.008 : (_running ? 0.035 : 0.017));
-    const double speeds[4] = { 0, 1, 1 / sqrt(2), 1 / sqrt(3) };
-
-    switch (_movementState) {
-        case OnGround:
-            if (upMotion > 0) {
-                _movementState = Falling;
-                _upV += 0.05f;
-            }
-        case Falling: {
-            int speed = abs(forwardMotion) + abs(sidewaysMotion);
-            double d = maxSpeed * speeds[speed];
-            _forwardV = forwardMotion * d;
-            _rightV = sidewaysMotion * d;
-            break;
-        }
-        case Flying: {
-            int speed = abs(forwardMotion) + abs(sidewaysMotion) + abs(upMotion);
-            double d = maxSpeed * speeds[speed];
-            _forwardV = forwardMotion * d;
-            _rightV = sidewaysMotion * d;
-            _upV = upMotion * d;
-            break;
-        }
-        default:
-            break;
-    }
-}
-
-void Player::update_movement(const MovementInputState &m) {
-    int forwardMotion=0, sidewaysMotion=0, upMotion=0;
-    if (m._forwardKey && !m._backwardKey) {
-        forwardMotion = 1;
-    } else if (m._backwardKey && !m._forwardKey) {
-        forwardMotion = -1;
-    }
-    if (m._leftKey && !m._rightKey) {
-        sidewaysMotion = 1;
-    } else if (m._rightKey && !m._leftKey) {
-        sidewaysMotion = -1;
-    }
-
-    _crouching = false;
-    if (m._jumpKey && !m._diveKey) {
-        upMotion = 1;
-    } else if (m._diveKey && !m._jumpKey) {
-        upMotion = -1;
-        if (_movementState == OnGround) {
-            _crouching = true;
-        }
-    }
-
-    _running = false;
-    if (m._runningKey) {
-        _running = true;
-    }
-
-    update_velocities(forwardMotion, sidewaysMotion, upMotion);
-}
-
-void Player::update_gaze(GLfloat elevationDelta, GLfloat rotationDelta) {
-    _facingUpDown -= elevationDelta;
-    _facingUpDown = std::max(-3.14159f / 2, _facingUpDown);
-    _facingUpDown = std::min(3.14159f / 2, _facingUpDown);
-
-    _facing -= rotationDelta;
-}
 
 //#############################################################################
 /*======================================================================*
@@ -461,11 +187,11 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
             break;
         case GLFW_KEY_F:
             if (action == GLFW_PRESS) {
-                if (player._movementState == Flying) {
-                    player._movementState = Falling;
-                } else {
-                    player._movementState = Flying;
-                }
+                // if (player._movementState == Flying) {
+                //     player._movementState = Falling;
+                // } else {
+                //     player._movementState = Flying;
+                // }
             }
             break;
         case GLFW_KEY_E:
@@ -496,7 +222,7 @@ static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
     } else {
         GLfloat elevationDelta = (GLfloat)(ypos - yposPrev) * SCALED_MOUSE_MOVEMENT;
         GLfloat rotationDelta = (GLfloat)(xpos - xposPrev) * SCALED_MOUSE_MOVEMENT;
-        player.update_gaze(elevationDelta, rotationDelta);
+        // player.update_gaze(elevationDelta, rotationDelta);
     }
     yposPrev = ypos;
     xposPrev = xpos;
@@ -507,8 +233,8 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
     if (button == 0 && action == GLFW_PRESS) {
             if (action == GLFW_PRESS) {
                 float pos[3], look[3];
-                player.get_eye_pos(pos);
-                player.get_eye_look(look);
+                // player.get_eye_pos(pos);
+                // player.get_eye_look(look);
                 missile.activate(pos[0], pos[1], pos[2], look[0]-pos[0], look[1]-pos[1], look[2]-pos[2]);
             }
     }
@@ -560,7 +286,9 @@ static void shutdown_glfw(GLFWwindow *window) {
     glfwTerminate();
     exit(EXIT_SUCCESS);
 }
+
 //#############################################################################
+
 GLuint cube_id;
 GLuint SquareTexturedVA;
 GLuint roach_id;
@@ -685,6 +413,23 @@ void Scene::render(const float *pos, const float *look) {
         matmul(MVP, model, squareMVP);
         glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, squareMVP);
         glDrawElements(GL_QUADS, 24, GL_UNSIGNED_INT, nullptr);
+    }
+
+
+    {
+        glBindVertexArray(cube_id);
+        colorShader->use();
+        //glActiveTexture(GL_TEXTURE0);
+        glUniform3f(colorShader->colorID, 166/255.0, 166/255.0, 166/255.0);
+        GLfloat model[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, falling_cube.x_,falling_cube.y_,falling_cube.z_,1 };
+        GLfloat squareMVP[16];
+        matmul(MVP, model, squareMVP);
+        glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, squareMVP);
+        glDrawElements(GL_QUADS, 24, GL_UNSIGNED_INT, nullptr);
+
+        glUniform3f(colorShader->colorID, 0, 0, 0);
+        glLineWidth(5);
+        glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, nullptr);
     }
 
 
@@ -1051,12 +796,19 @@ void load_model(const char *file_name) {
 
 //#############################################################################
 
-void update_object_locations(float *look, double time_delta) {
-    player.update_movement(gMovementInputState);
+void update_object_locations(Player &player, float *look, double time_delta) {
+    // player.update_movement(gMovementInputState);
     player.update_pos(look, time_delta);
+
+    missile.update(time_delta);
+    falling_cube.update(time_delta);
 }
 
 int main(void) {
+    Player player;
+
+
+
     load_model("models/15919_Cockroach_v1.obj");
 
     GLFWwindow *window = init_glfw();
@@ -1096,9 +848,8 @@ int main(void) {
         double time_delta = 100*(time - time_prev); // convert this to number of ticks?
         time_prev = time;
 
-        missile.update(time_delta);
-        player.update_eye_pos(time_delta);
-        update_object_locations(look, time_delta);
+        // player.update_eye_pos(time_delta);
+        update_object_locations(player, look, time_delta);
     }
     shutdown_glfw(window);
 }

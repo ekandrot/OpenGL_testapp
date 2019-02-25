@@ -3,7 +3,7 @@ LFLAGS := `pkg-config libpng --libs` -lglut -lGLEW -lGL -lGLU -lglfw -ljpeg
 OBJDIR := objs/
 SRC := linux_project/
 INFINITE_OBJS := $(LIBS_OBJS) $(addprefix $(OBJDIR), texture.o shaders.o game2.o)
-APP_OBJS := $(LIBS_OBJS) $(addprefix $(OBJDIR), texture.o shaders.o game0.o)
+APP_OBJS := $(LIBS_OBJS) $(addprefix $(OBJDIR), texture.o shaders.o game0.o player.o)
 CURVED_OBJS := $(LIBS_OBJS) $(addprefix $(OBJDIR), texture.o shaders.o game_view.o curved_test0.o)
 
 VPATH = common:$(SRC)
@@ -16,7 +16,7 @@ clean:
 $(OBJDIR)%.o : %.cpp %.h
 	g++ $< -o $@ $(CFLAGS) $(OUTPUT_OPTIONS)
 
-$(OBJDIR)game0.o : game0.cpp shaders.h texture.h maths.h
+$(OBJDIR)game0.o : game0.cpp shaders.h texture.h maths.h player.h
 	g++ $< -o $@ $(CFLAGS) $(OUTPUT_OPTIONS)
 
 $(OBJDIR)game2.o : game2.cpp shaders.h texture.h maths.h

@@ -5,29 +5,29 @@
 //#############################################################################
 
 template <class T>
-T sqr(const T &x) {return x * x;}
+inline T sqr(const T &x) {return x * x;}
 
 //#############################################################################
 
-void normalize(float *vec) {
+inline void normalize(float *vec) {
     float d = sqrt(sqr(vec[0]) + sqr(vec[1]) + sqr(vec[2]));
     vec[0] /= d;
     vec[1] /= d;
     vec[2] /= d;
 }
 
-float dot(const float *a, const float *b) {
+inline float dot(const float *a, const float *b) {
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 }
 
 // c = a cross b
-void cross(const float *a, const float *b, float *c) {
+inline void cross(const float *a, const float *b, float *c) {
     c[0] = (a[1] * b[2]) - (a[2] * b[1]);
     c[1] = (a[2] * b[0]) - (a[0] * b[2]);
     c[2] = (a[0] * b[1]) - (a[1] * b[0]);
 }
 
-void matmul(const float *a, const float *b, float *c) {
+inline void matmul(const float *a, const float *b, float *c) {
     for (int row = 0; row<4; ++row) {
         for (int col = 0; col<4; ++col) {
             float sum = 0;
@@ -39,7 +39,7 @@ void matmul(const float *a, const float *b, float *c) {
     }
 }
 
-void lookAt(float eyex, float eyey, float eyez, float centerx, float centery, float centerz, float upx, float upy, float upz, float *m) {
+inline void lookAt(float eyex, float eyey, float eyez, float centerx, float centery, float centerz, float upx, float upy, float upz, float *m) {
     float Z[3] = { eyex - centerx, eyey - centery, eyez - centerz };
     normalize(Z);
     float X[3];
@@ -72,7 +72,7 @@ void lookAt(float eyex, float eyey, float eyez, float centerx, float centery, fl
 }
 
 // redefine near/far  as n/f, due to Windows headers
-void perspective(float angle, float ratio, float n, float f, float *p) {
+inline void perspective(float angle, float ratio, float n, float f, float *p) {
     float e = 1 / tanf(angle * 3.14159f / 180 / 2);
     p[0] = e;
     p[1] = 0;
