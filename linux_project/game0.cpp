@@ -20,6 +20,15 @@
 #include "player.h"
 
 
+
+
+
+
+std::vector<std::pair<float, float> >  captured_mouse_movements;
+std::vector<std::pair<int, int> >  captured_keyboard_inputs;    // key, status
+
+
+
 GLfloat *roach_data;
 GLint *roach_indexes;
 GLsizeiptr sizeof_roach_data;
@@ -46,19 +55,6 @@ static inline void my_assign(GLfloat *a, std::initializer_list<float> c) {
     }
 }
 
-
-//#############################################################################
-
-struct MovementInputState {
-    bool _forwardKey;
-    bool _backwardKey;
-    bool _leftKey;
-    bool _rightKey;
-    bool _jumpKey;
-    bool _diveKey;
-    bool _runningKey;
-};
-MovementInputState gMovementInputState;
 
 //#############################################################################
 
@@ -160,54 +156,65 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
         return;
     }
 
-    // action can be GLFW_PRESS or GLFW_REPEAT to count as down
-    // action will be GLFW_RELEASE when the key is released
-    bool keyIsDown = (action != GLFW_RELEASE);
-    switch (key) {
-        case GLFW_KEY_W:
-            gMovementInputState._forwardKey = keyIsDown;
-            break;
-        case GLFW_KEY_S:
-            gMovementInputState._backwardKey = keyIsDown;
-            break;
-        case GLFW_KEY_A:
-            gMovementInputState._leftKey = keyIsDown;
-            break;
-        case GLFW_KEY_D:
-            gMovementInputState._rightKey = keyIsDown;
-            break;
-        case GLFW_KEY_SPACE:
-            gMovementInputState._jumpKey = keyIsDown;
-            break;
-        case GLFW_KEY_C:
-            gMovementInputState._diveKey = keyIsDown;
-            break;
-        case GLFW_KEY_LEFT_SHIFT:
-            gMovementInputState._runningKey = keyIsDown;
-            break;
-        case GLFW_KEY_F:
-            if (action == GLFW_PRESS) {
-                // if (player._movementState == Flying) {
-                //     player._movementState = Falling;
-                // } else {
-                //     player._movementState = Flying;
-                // }
-            }
-            break;
-        case GLFW_KEY_E:
-            if (action == GLFW_PRESS) {
-                if (gGame._mode == Inventory) {
-                    gGame._mode = Playing;
-                } else {
-                    gGame._mode = Inventory;
-                }
-            }
-            break;
+    if (key == GLFW_KEY_E && action == GLFW_PRESS) {
+        if (gGame._mode == Inventory) {
+            gGame._mode = Playing;
+        } else {
+            gGame._mode = Inventory;
+        }
+    }
 
-        default:
-            break;
+    if (gGame._mode == Playing) {
+        captured_keyboard_inputs.push_back(std::make_pair(key, action));
     }
 }
+
+static void process_keys(const std::vector<std::pair<int, int> > &keyboard_inputs, MovementInputState &player_movement_state) {
+    for (auto key_press : keyboard_inputs) {
+        int key = key_press.first;
+        int action = key_press.second;
+
+        // action can be GLFW_PRESS or GLFW_REPEAT to count as down
+        // action will be GLFW_RELEASE when the key is released
+        bool keyIsDown = (action != GLFW_RELEASE);
+        switch (key) {
+            case GLFW_KEY_W:
+                player_movement_state._forwardKey = keyIsDown;
+                break;
+            case GLFW_KEY_S:
+                player_movement_state._backwardKey = keyIsDown;
+                break;
+            case GLFW_KEY_A:
+                player_movement_state._leftKey = keyIsDown;
+                break;
+            case GLFW_KEY_D:
+                player_movement_state._rightKey = keyIsDown;
+                break;
+            case GLFW_KEY_SPACE:
+                player_movement_state._jumpKey = keyIsDown;
+                break;
+            case GLFW_KEY_C:
+                player_movement_state._diveKey = keyIsDown;
+                break;
+            case GLFW_KEY_LEFT_SHIFT:
+                player_movement_state._runningKey = keyIsDown;
+                break;
+            case GLFW_KEY_F:
+                // if (action == GLFW_PRESS) {
+                //     if (player._movementState == Flying) {
+                //         player._movementState = Falling;
+                //     } else {
+                //         player._movementState = Flying;
+                //     }
+                // }
+                break;
+
+            default:
+                break;
+        }
+    }
+}
+
 
 static double xposPrev, yposPrev;   // gets initialized in init_glfw()
 const GLfloat SCALED_MOUSE_MOVEMENT = 0.001f;
@@ -222,7 +229,7 @@ static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
     } else {
         GLfloat elevationDelta = (GLfloat)(ypos - yposPrev) * SCALED_MOUSE_MOVEMENT;
         GLfloat rotationDelta = (GLfloat)(xpos - xposPrev) * SCALED_MOUSE_MOVEMENT;
-        // player.update_gaze(elevationDelta, rotationDelta);
+        captured_mouse_movements.push_back(std::make_pair(elevationDelta, rotationDelta));
     }
     yposPrev = ypos;
     xposPrev = xpos;
@@ -797,7 +804,6 @@ void load_model(const char *file_name) {
 //#############################################################################
 
 void update_object_locations(Player &player, float *look, double time_delta) {
-    // player.update_movement(gMovementInputState);
     player.update_pos(look, time_delta);
 
     missile.update(time_delta);
@@ -806,6 +812,7 @@ void update_object_locations(Player &player, float *look, double time_delta) {
 
 int main(void) {
     Player player;
+    MovementInputState player_movement_state = {};
 
 
 
@@ -848,7 +855,14 @@ int main(void) {
         double time_delta = 100*(time - time_prev); // convert this to number of ticks?
         time_prev = time;
 
-        // player.update_eye_pos(time_delta);
+        process_keys(captured_keyboard_inputs, player_movement_state);
+        captured_keyboard_inputs.clear();
+        player.update_movement(player_movement_state);
+
+        player.update_gaze(captured_mouse_movements);
+        captured_mouse_movements.clear();
+        
+        player.update_eye_pos(time_delta);
         update_object_locations(player, look, time_delta);
     }
     shutdown_glfw(window);

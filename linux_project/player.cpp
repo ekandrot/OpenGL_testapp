@@ -215,41 +215,45 @@ void Player::update_velocities(int forwardMotion, int sidewaysMotion, int upMoti
     }
 }
 
-// void Player::update_movement(const MovementInputState &m) {
-//     int forwardMotion=0, sidewaysMotion=0, upMotion=0;
-//     if (m._forwardKey && !m._backwardKey) {
-//         forwardMotion = 1;
-//     } else if (m._backwardKey && !m._forwardKey) {
-//         forwardMotion = -1;
-//     }
-//     if (m._leftKey && !m._rightKey) {
-//         sidewaysMotion = 1;
-//     } else if (m._rightKey && !m._leftKey) {
-//         sidewaysMotion = -1;
-//     }
+void Player::update_movement(const MovementInputState &m) {
+    int forwardMotion=0, sidewaysMotion=0, upMotion=0;
+    if (m._forwardKey && !m._backwardKey) {
+        forwardMotion = 1;
+    } else if (m._backwardKey && !m._forwardKey) {
+        forwardMotion = -1;
+    }
+    if (m._leftKey && !m._rightKey) {
+        sidewaysMotion = 1;
+    } else if (m._rightKey && !m._leftKey) {
+        sidewaysMotion = -1;
+    }
 
-//     _crouching = false;
-//     if (m._jumpKey && !m._diveKey) {
-//         upMotion = 1;
-//     } else if (m._diveKey && !m._jumpKey) {
-//         upMotion = -1;
-//         if (_movementState == OnGround) {
-//             _crouching = true;
-//         }
-//     }
+    _crouching = false;
+    if (m._jumpKey && !m._diveKey) {
+        upMotion = 1;
+    } else if (m._diveKey && !m._jumpKey) {
+        upMotion = -1;
+        if (_movementState == OnGround) {
+            _crouching = true;
+        }
+    }
 
-//     _running = false;
-//     if (m._runningKey) {
-//         _running = true;
-//     }
+    _running = false;
+    if (m._runningKey) {
+        _running = true;
+    }
 
-//     update_velocities(forwardMotion, sidewaysMotion, upMotion);
-// }
+    update_velocities(forwardMotion, sidewaysMotion, upMotion);
+}
 
-void Player::update_gaze(GLfloat elevationDelta, GLfloat rotationDelta) {
-    _facingUpDown -= elevationDelta;
-    _facingUpDown = std::max(-3.14159f / 2, _facingUpDown);
-    _facingUpDown = std::min(3.14159f / 2, _facingUpDown);
+void Player::update_gaze(const std::vector<std::pair<float, float> > &mouse_movements) {
+    for (auto &pair : mouse_movements) {
+        GLfloat elevationDelta = pair.first;
+        GLfloat rotationDelta = pair.second;
+        _facingUpDown -= elevationDelta;
+        _facingUpDown = std::max(-3.14159f / 2, _facingUpDown);
+        _facingUpDown = std::min(3.14159f / 2, _facingUpDown);
 
-    _facing -= rotationDelta;
+        _facing -= rotationDelta;
+    }
 }

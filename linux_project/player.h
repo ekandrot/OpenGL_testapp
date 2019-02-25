@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <vector>
 
 #include <GLFW/glfw3.h>
 
@@ -14,6 +15,17 @@ enum MovementState {
 };
 
 
+struct MovementInputState {
+    bool _forwardKey;
+    bool _backwardKey;
+    bool _leftKey;
+    bool _rightKey;
+    bool _jumpKey;
+    bool _diveKey;
+    bool _runningKey;
+};
+
+
 //#############################################################################
 
 struct Player {
@@ -24,8 +36,8 @@ struct Player {
     void get_eye_look(float *look) const;
     void get_eye_pos(float *look) const;
 
-    void update_gaze(GLfloat elevationDelta, GLfloat rotationDelta);
-    // void update_movement(const MovementInputState &movementInputState);
+    void update_gaze(const std::vector<std::pair<float, float> > &mouse_movements);
+    void update_movement(const MovementInputState &movementInputState);
     void update_velocities(int forwardMotion, int sidewaysMotion, int upMotion);
     void update_pos(const GLfloat* look, double time_delta);
 
