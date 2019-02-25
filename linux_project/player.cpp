@@ -153,22 +153,21 @@ void Player::update_pos(const GLfloat* look, double time_delta) {
 }
 
 
-
 Player::Player() {
 }
 
 void Player::update_eye_pos(double time_delta) {
     if (_crouching) {
-        if (_eyeHeight > 0.25) {
-            _eyeHeight -= 0.01;
+        if (_eyeHeight > 0.50) {
+            _eyeHeight -= 0.05 * time_delta;
         } else {
-            _eyeHeight = 0.25;
+            _eyeHeight = 0.50;
         }
     } else {
-        if (_eyeHeight < 0.75) {
-            _eyeHeight += 0.01;
+        if (_eyeHeight < 1.50) {
+            _eyeHeight += 0.05 * time_delta;
         } else {
-            _eyeHeight = 0.75;
+            _eyeHeight = 1.50;
         }
     }
 }
@@ -182,7 +181,7 @@ void Player::get_eye_look(float *look) const {
 void Player::get_eye_pos(float *pos) const {
     pos[0] = _pos[0];
     pos[1] = _pos[1];
-    pos[2] = _pos[2] +_eyeHeight;
+    pos[2] = _pos[2] + _eyeHeight;
 }
 
 void Player::update_velocities(int forwardMotion, int sidewaysMotion, int upMotion) {

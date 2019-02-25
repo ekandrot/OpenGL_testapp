@@ -57,7 +57,7 @@ struct Player {
     float _upV = 0; // negative is down
     float _rightV = 0;  // negative is left
     float _forwardV = 0; // negative is backwards
-    MovementState _movementState = OnGround;
+    MovementState _movementState = Flying;//OnGround;
 };
 
 //#############################################################################

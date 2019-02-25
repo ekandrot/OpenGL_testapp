@@ -16,24 +16,21 @@
 //#define GLFW_INCLUDE_GLEXT
 #include <GLFW/glfw3.h>
 
+#include "chunk.h"
 #include "constants.h"
 #include "player.h"
 
-
-
-
-
-
+// queues of events, captured in callbacks, used during update ticks of the engine
 std::vector<std::pair<float, float> >  captured_mouse_movements;
 std::vector<std::pair<int, int> >  captured_keyboard_inputs;    // key, status
 
 
 
-GLfloat *roach_data;
-GLint *roach_indexes;
-GLsizeiptr sizeof_roach_data;
-GLsizeiptr sizeof_roach_indexes;
-int count_roach_indexes;
+// GLfloat *roach_data;
+// GLint *roach_indexes;
+// GLsizeiptr sizeof_roach_data;
+// GLsizeiptr sizeof_roach_indexes;
+// int count_roach_indexes;
 
 const float CURSOR_SIZE = 0.05;
 
@@ -45,9 +42,6 @@ enum GameMode {
 };
 
 //#############################################################################
-
-uint32_t grid[10][10];
-
 
 static inline void my_assign(GLfloat *a, std::initializer_list<float> c) {
     for (size_t i=0; i<c.size(); ++i) {
@@ -123,12 +117,12 @@ moving_object missile;
 struct block_object {
     block_object() : x_(3), y_(3), z_(3), falling_(true) {}
 
-    void update(double tick) {
+    void update(double tick, const Chunk &chunk) {
         if (falling_) {
             z_ += vz_ * tick;
             vz_ += GRAVITY * tick;
-            if (z_ <= 0) {
-                z_ = 0;
+            if (0 < chunk.grid[int(z_)][int(y_)][int(x_)]) {
+                z_ = int(z_) + 1;
                 vz_ = 0;
                 falling_ = false;
             }
@@ -239,10 +233,10 @@ static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
 static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     if (button == 0 && action == GLFW_PRESS) {
             if (action == GLFW_PRESS) {
-                float pos[3], look[3];
+                // float pos[3], look[3];
                 // player.get_eye_pos(pos);
                 // player.get_eye_look(look);
-                missile.activate(pos[0], pos[1], pos[2], look[0]-pos[0], look[1]-pos[1], look[2]-pos[2]);
+                // missile.activate(pos[0], pos[1], pos[2], look[0]-pos[0], look[1]-pos[1], look[2]-pos[2]);
             }
     }
 }
@@ -297,6 +291,7 @@ static void shutdown_glfw(GLFWwindow *window) {
 //#############################################################################
 
 GLuint cube_id;
+GLuint cube_outline_id;
 GLuint SquareTexturedVA;
 GLuint roach_id;
 GLuint inventory_cells_va;
@@ -311,18 +306,19 @@ struct Scene {
 
     Scene(float ratio) : _ratio(ratio) {}
 
-    void render(const float *pos, const float *look);
+    void render(const Chunk &chunk, const float *pos, const float *look);
 };
 
-void Scene::render(const float *pos, const float *look) {
+void Scene::render(const Chunk &chunk, const float *pos, const float *look) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     float MVP[16], view[16], projection[16];
     lookAt(pos[0], pos[1], pos[2], look[0], look[1], look[2], 0, 0, 1, view);
-    perspective(45, _ratio, 0.1f, 100.0f, projection);
+    perspective(70, _ratio, 0.1f, 100.0f, projection);
     matmul(projection, view, MVP);
 
     // draw monsters!
+    #if 0
     {
         glBindVertexArray(roach_id);
         colorShader->use();
@@ -337,20 +333,52 @@ void Scene::render(const float *pos, const float *look) {
         glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, squareMVP);
         glDrawElements(GL_QUADS, count_roach_indexes, GL_UNSIGNED_INT, nullptr);
     }
+    #endif
+
+    if (1)
+    {
+        for (int z = 0; z < 16; ++z) {
+            for (int y = 0; y < 16; ++y) {
+                for (int x = 0; x < 16; ++x) {
+                    if (chunk.grid[z][y][x] > 0) {
+                        glBindVertexArray(cube_id);
+                        colorShader->use();
+                        glUniform3f(colorShader->colorID, 0/255.0, 128/255.0, 0/255.0);
+                        GLfloat model[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, (float)x,(float)y,(float)z,1 };
+                        GLfloat squareMVP[16];
+                        matmul(MVP, model, squareMVP);
+                        glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, squareMVP);
+                        glDrawElements(GL_TRIANGLE_STRIP, 19, GL_UNSIGNED_INT, nullptr);
+
+                        glBindVertexArray(cube_outline_id);
+                        glUniform3f(colorShader->colorID, 0, 0, 0);
+                        glLineWidth(1);
+                        glDrawElements(GL_LINE_STRIP, 16, GL_UNSIGNED_INT, nullptr);
+                    }
+                }
+            }
+        }
+    }
 
 
+#if 0
     // draw a floor squares
+    if (0)
     {
         glBindVertexArray(SquareTexturedVA);
-        textureShader->use();
-        glActiveTexture(GL_TEXTURE0);
-        glUniform1i(textureShader->samplerID, 0);
+        colorShader->use();
+        //glActiveTexture(GL_TEXTURE0);
+        glUniform3f(colorShader->colorID, 0/255.0, 255/255.0, 0/255.0);
+
+        // textureShader->use();
+        // glActiveTexture(GL_TEXTURE0);
+        // glUniform1i(textureShader->samplerID, 0);
         GLfloat finalMat[16];
         GLfloat location_mat[16];
         for (int y = 0; y < 10; ++y) {
             for (int x = 0; x < 10; ++x) {
-                textureDict[grid[y][x]]->bind();
-                if (!is_blocking(grid[y][x])) {
+                textureDict[chunk.grid[0][y][x]]->bind();
+                if (!is_blocking(chunk.grid[0][y][x])) {
                     // draw floor for non-blocking spaces
                     my_assign(location_mat, { 1,0,0,0, 0,1,0,0, 0,0,1,0, (GLfloat)x,(GLfloat)y,0,1 });
                     matmul(MVP, location_mat, finalMat);
@@ -409,18 +437,19 @@ void Scene::render(const float *pos, const float *look) {
             }
         }
     }
+#endif
 
-    if (missile._activated) {
-        glBindVertexArray(cube_id);
-        colorShader->use();
-        //glActiveTexture(GL_TEXTURE0);
-        glUniform3f(colorShader->colorID, 166/255.0, 23/255.0, 91/255.0);
-        GLfloat model[16] = { 0.1,0,0,0, 0,0.1,0,0, 0,0,0.1,0, missile._posx,missile._posy,missile._posz,1 };
-        GLfloat squareMVP[16];
-        matmul(MVP, model, squareMVP);
-        glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, squareMVP);
-        glDrawElements(GL_QUADS, 24, GL_UNSIGNED_INT, nullptr);
-    }
+    // if (missile._activated) {
+    //     glBindVertexArray(cube_id);
+    //     colorShader->use();
+    //     //glActiveTexture(GL_TEXTURE0);
+    //     glUniform3f(colorShader->colorID, 166/255.0, 23/255.0, 91/255.0);
+    //     GLfloat model[16] = { 0.1,0,0,0, 0,0.1,0,0, 0,0,0.1,0, missile._posx,missile._posy,missile._posz,1 };
+    //     GLfloat squareMVP[16];
+    //     matmul(MVP, model, squareMVP);
+    //     glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, squareMVP);
+    //     glDrawElements(GL_QUADS, 24, GL_UNSIGNED_INT, nullptr);
+    // }
 
 
     {
@@ -432,11 +461,12 @@ void Scene::render(const float *pos, const float *look) {
         GLfloat squareMVP[16];
         matmul(MVP, model, squareMVP);
         glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, squareMVP);
-        glDrawElements(GL_QUADS, 24, GL_UNSIGNED_INT, nullptr);
+        glDrawElements(GL_TRIANGLE_STRIP, 19, GL_UNSIGNED_INT, nullptr);
 
+        glBindVertexArray(cube_outline_id);
         glUniform3f(colorShader->colorID, 0, 0, 0);
         glLineWidth(5);
-        glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, nullptr);
+        glDrawElements(GL_LINE_STRIP, 16, GL_UNSIGNED_INT, nullptr);
     }
 
 
@@ -601,13 +631,12 @@ void init_opengl_objects() {
 
     glGenVertexArrays(1, &cube_id);
     glBindVertexArray(cube_id);
-    GLfloat cube_data[12 * 5] = {
-        0,0,0, 0,0,  0,1,0, 1,0,  0,1,1, 1,1,  0,0,1, 0,1,  1,1,0, 0,0,  1,1,1, 0,1,  1,0,0, 1,0,  1,0,1, 1,1,
-        1,0,1, 0,0,  0,0,1, 1,0,  1,0,0, 0,1,  0,0,0, 1,1 };
-    GLint cube_indexes[6 * 4] = { 0,1,2,3, 1,4,5,2, 4,6,7,5, 6,0,3,7, 2,5,8,9, 1,4,10,11 };
+    GLfloat cube_data[8 * 3] = { 0,0,0, 0,0,1, 0,1,0, 0,1,1, 1,0,0, 1,0,1, 1,1,0, 1,1,1};
+    GLint cube_indexes[5 * 2 + 3 + 6] = { 0,1, 4,5, 6,7, 2,3, 0,1,   5,3,7,  7,6,6,4,2,0 };
 
-    glGenBuffers(1, &tempBufID);
-    glBindBuffer(GL_ARRAY_BUFFER, tempBufID);
+    GLuint cube_data_buf_id;
+    glGenBuffers(1, &cube_data_buf_id);
+    glBindBuffer(GL_ARRAY_BUFFER, cube_data_buf_id);
     glBufferData(GL_ARRAY_BUFFER, sizeof(cube_data), cube_data, GL_STATIC_DRAW);
 
     glGenBuffers(1, &tempBufID);
@@ -619,25 +648,22 @@ void init_opengl_objects() {
         3,  // size
         GL_FLOAT,   // type
         GL_FALSE,   // normalized?
-        5 * sizeof(GLfloat),  // stride
+        3 * sizeof(GLfloat),  // stride
         (void*)0 // array buffer offset
     );
     glEnableVertexAttribArray(0);
 
 
-    glGenVertexArrays(1, &roach_id);
-    glBindVertexArray(roach_id);
 
-    glGenBuffers(1, &tempBufID);
-    glBindBuffer(GL_ARRAY_BUFFER, tempBufID);
-    glBufferData(GL_ARRAY_BUFFER, sizeof_roach_data, roach_data, GL_STATIC_DRAW);
-
+    GLint cube_outline_indexes[5 * 2 + 6] = { 0,4,6,2,0, 1,5,7,3,1, 5,4,6,7,3,2 };
+    glGenVertexArrays(1, &cube_outline_id);
+    glBindVertexArray(cube_outline_id);
+    glBindBuffer(GL_ARRAY_BUFFER, cube_data_buf_id);
     glGenBuffers(1, &tempBufID);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tempBufID);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof_roach_indexes, roach_indexes, GL_STATIC_DRAW);
-
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cube_outline_indexes), cube_outline_indexes, GL_STATIC_DRAW);
     glVertexAttribPointer(
-        0,  // attribute 0. No particular reason for 0, but must match the layout in the shader.
+        0,  // attribute 0.
         3,  // size
         GL_FLOAT,   // type
         GL_FALSE,   // normalized?
@@ -645,6 +671,33 @@ void init_opengl_objects() {
         (void*)0 // array buffer offset
     );
     glEnableVertexAttribArray(0);
+
+
+
+
+
+// if roach
+    // glGenVertexArrays(1, &roach_id);
+    // glBindVertexArray(roach_id);
+
+    // glGenBuffers(1, &tempBufID);
+    // glBindBuffer(GL_ARRAY_BUFFER, tempBufID);
+    // glBufferData(GL_ARRAY_BUFFER, sizeof_roach_data, roach_data, GL_STATIC_DRAW);
+
+    // glGenBuffers(1, &tempBufID);
+    // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tempBufID);
+    // glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof_roach_indexes, roach_indexes, GL_STATIC_DRAW);
+
+    // glVertexAttribPointer(
+    //     0,  // attribute 0. No particular reason for 0, but must match the layout in the shader.
+    //     3,  // size
+    //     GL_FLOAT,   // type
+    //     GL_FALSE,   // normalized?
+    //     3 * sizeof(GLfloat),  // stride
+    //     (void*)0 // array buffer offset
+    // );
+    // glEnableVertexAttribArray(0);
+
 
 #if 0
     glVertexAttribPointer(
@@ -685,6 +738,7 @@ void init_opengl_objects() {
 
 //#############################################################################
 
+#if 0
 void init_game_objects() {
     for (int y = 0; y < 10; ++y) {
         for (int x = 0; x < 10; ++x) {
@@ -713,8 +767,10 @@ void init_game_objects() {
     grid[6][2] = 1;
     grid[6][3] = 1;
 }
+#endif
 
 //#############################################################################
+#if 0   // if roach
 
 static void get_vertex(const char *buffer, GLfloat *a, GLfloat *b, GLfloat *c) {
     *a = atof(buffer) / 10;
@@ -800,27 +856,42 @@ void load_model(const char *file_name) {
     delete buffer;
     fclose(f);
 }
+#endif
 
 //#############################################################################
 
-void update_object_locations(Player &player, float *look, double time_delta) {
+void update_object_locations(Player &player, const Chunk &chunk, float *look, double time_delta) {
     player.update_pos(look, time_delta);
 
     missile.update(time_delta);
-    falling_cube.update(time_delta);
+    falling_cube.update(time_delta, chunk);
+}
+
+
+void fill_example_chunk(Chunk &chunk) {
+    for (int x=0; x<16; ++x) {
+        for (int y=0; y<16; ++y) {
+            chunk.grid[0][y][x] = 1;
+        }
+    }
+
+    chunk.grid[0][5][5] = 0;
+    chunk.grid[2][5][5] = 1;
 }
 
 int main(void) {
     Player player;
     MovementInputState player_movement_state = {};
 
+    Chunk   chunk={};
+    fill_example_chunk(chunk);
 
 
-    load_model("models/15919_Cockroach_v1.obj");
+    // load_model("models/15919_Cockroach_v1.obj");
 
     GLFWwindow *window = init_glfw();
     init_opengl_objects();
-    init_game_objects();
+    // init_game_objects();
 
     float ratio;
     int width, height;
@@ -837,7 +908,7 @@ int main(void) {
         float look[3];
         player.get_eye_pos(pos);
         player.get_eye_look(look);  // get eye so we know which direction forward is
-        scene.render(pos, look);
+        scene.render(chunk, pos, look);
 
 
         glfwSwapBuffers(window);
@@ -863,7 +934,7 @@ int main(void) {
         captured_mouse_movements.clear();
         
         player.update_eye_pos(time_delta);
-        update_object_locations(player, look, time_delta);
+        update_object_locations(player, chunk, look, time_delta);
     }
     shutdown_glfw(window);
 }
