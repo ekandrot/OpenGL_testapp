@@ -861,7 +861,7 @@ void load_model(const char *file_name) {
 //#############################################################################
 
 void update_object_locations(Player &player, const Chunk &chunk, float *look, double time_delta) {
-    player.update_pos(look, time_delta);
+    player.update_pos(chunk, look, time_delta);
 
     missile.update(time_delta);
     falling_cube.update(time_delta, chunk);

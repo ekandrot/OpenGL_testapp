@@ -13,10 +13,10 @@ all: app curved_test0.app infinite
 clean:
 	-rm curved_test0.app app infinite $(OBJDIR)*
 
-$(OBJDIR)%.o : %.cpp %.h
+$(OBJDIR)%.o : %.cpp %.h constants.h
 	g++ $< -o $@ $(CFLAGS) $(OUTPUT_OPTIONS)
 
-$(OBJDIR)game0.o : game0.cpp shaders.h texture.h maths.h player.h
+$(OBJDIR)game0.o : game0.cpp shaders.h texture.h maths.h player.h constants.h
 	g++ $< -o $@ $(CFLAGS) $(OUTPUT_OPTIONS)
 
 $(OBJDIR)game2.o : game2.cpp shaders.h texture.h maths.h

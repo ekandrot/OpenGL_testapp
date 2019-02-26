@@ -2,10 +2,11 @@
 
 #include "maths.h"
 #include "constants.h"
+#include "chunk.h"
 #include "player.h"
 
 
-void Player::update_pos_onground(const GLfloat* look, double time_delta) {
+void Player::update_pos_onground(const Chunk &chunk, const GLfloat* look, double time_delta) {
     // estimate a new position for the player
     // newpos is based on:
     //   if player has a velocity, reduce it by the blocktype
@@ -28,20 +29,21 @@ void Player::update_pos_onground(const GLfloat* look, double time_delta) {
     // the indexes of where we are on the grid
     int ix = (int)_pos[0];
     int iy = (int)_pos[1];
+    int iz = (int)_pos[2];
 
     // check for walls where we are, and prevent moving through them
-    // if (is_blocking(grid[iy][ix-1])) {
-    //     newPos[0] = std::max(newPos[0], ix + 0.15f);
-    // }
-    // if (is_blocking(grid[iy][ix+1])) {
-    //     newPos[0] = std::min(newPos[0], ix + 0.85f);
-    // }
-    // if (is_blocking(grid[iy-1][ix])) {
-    //     newPos[1] = std::max(newPos[1], iy + 0.15f);
-    // }
-    // if (is_blocking(grid[iy+1][ix])) {
-    //     newPos[1] = std::min(newPos[1], iy + 0.85f);
-    // }
+    if (is_blocking(chunk.grid[iz][iy][ix-1])) {
+        newPos[0] = std::max(newPos[0], ix + 0.15f);
+    }
+    if (is_blocking(chunk.grid[iz][iy][ix+1])) {
+        newPos[0] = std::min(newPos[0], ix + 0.85f);
+    }
+    if (is_blocking(chunk.grid[iz][iy-1][ix])) {
+        newPos[1] = std::max(newPos[1], iy + 0.15f);
+    }
+    if (is_blocking(chunk.grid[iz][iy+1][ix])) {
+        newPos[1] = std::min(newPos[1], iy + 0.85f);
+    }
 
     // make sure we stay within the grid, overall
     newPos[0] = std::max(0.15f, std::min(9.85f, newPos[0]));
@@ -53,6 +55,12 @@ void Player::update_pos_onground(const GLfloat* look, double time_delta) {
     } else */{
         //printf("%d, %d\n", (int)(newPos[0]*5 + 5), (int)(newPos[1]*5 + 5));
         float groundHeight = 0;
+        for (int i=0; i<16; ++i) {
+            if (chunk.grid[i][int(newPos[1])][int(newPos[0])] == 0) {
+                groundHeight = i;
+                break;
+            }
+        }
         float myHeight = newPos[2];
         if (groundHeight - myHeight <= MAX_STEP_HEIGHT) {
             validMove = true;
@@ -72,7 +80,7 @@ void Player::update_pos_onground(const GLfloat* look, double time_delta) {
     //facing += rotationV;        // need to include a timestamp to handle fps correctly
 }
 
-void Player::update_pos_falling(const GLfloat* look, double time_delta) {
+void Player::update_pos_falling(const Chunk &chunk, const GLfloat* look, double time_delta) {
     _upV += GRAVITY * time_delta;
 
     GLfloat Z[3] = { look[0] - _pos[0], look[1] - _pos[1], 0 }; //, look[2] - pos[2]};
@@ -85,22 +93,29 @@ void Player::update_pos_falling(const GLfloat* look, double time_delta) {
     // the indexes of where we are on the grid
     int ix = (int)_pos[0];
     int iy = (int)_pos[1];
+    int iz = (int)_pos[2];
 
     // check for walls where we are, and prevent moving through them
-    // if (is_blocking(grid[iy][ix - 1])) {
-    //     newPos[0] = std::max(newPos[0], ix + 0.15f);
-    // }
-    // if (is_blocking(grid[iy][ix + 1])) {
-    //     newPos[0] = std::min(newPos[0], ix + 0.85f);
-    // }
-    // if (is_blocking(grid[iy - 1][ix])) {
-    //     newPos[1] = std::max(newPos[1], iy + 0.15f);
-    // }
-    // if (is_blocking(grid[iy + 1][ix])) {
-    //     newPos[1] = std::min(newPos[1], iy + 0.85f);
-    // }
+    if (is_blocking(chunk.grid[iz][iy][ix - 1])) {
+        newPos[0] = std::max(newPos[0], ix + 0.15f);
+    }
+    if (is_blocking(chunk.grid[iz][iy][ix + 1])) {
+        newPos[0] = std::min(newPos[0], ix + 0.85f);
+    }
+    if (is_blocking(chunk.grid[iz][iy - 1][ix])) {
+        newPos[1] = std::max(newPos[1], iy + 0.15f);
+    }
+    if (is_blocking(chunk.grid[iz][iy + 1][ix])) {
+        newPos[1] = std::min(newPos[1], iy + 0.85f);
+    }
 
     float groundHeight = 0;
+    for (int i=0; i<16; ++i) {
+        if (chunk.grid[i][int(newPos[1])][int(newPos[0])] == 0) {
+            groundHeight = i;
+            break;
+        }
+    }
     if (newPos[2] < groundHeight) {
         newPos[2] = groundHeight;
         _upV = 0;
@@ -116,7 +131,7 @@ void Player::update_pos_falling(const GLfloat* look, double time_delta) {
     //facing += rotationV;        // need to include a timestamp to handle fps correctly
 }
 
-void Player::update_pos_flying(const GLfloat* look, double time_delta) {
+void Player::update_pos_flying(const Chunk &chunk, const GLfloat* look, double time_delta) {
     GLfloat Z[3] = { look[0] - _pos[0], look[1] - _pos[1], 0 }; //, look[2] - pos[2]};
     normalize(Z);
     GLfloat newPos[3];
@@ -136,16 +151,16 @@ void Player::update_pos_flying(const GLfloat* look, double time_delta) {
 /*
 *   First calculate where we are, then the direction we are looking from that position
 */
-void Player::update_pos(const GLfloat* look, double time_delta) {
+void Player::update_pos(const Chunk &chunk, const GLfloat* look, double time_delta) {
     switch (_movementState) {
         case OnGround:
-            update_pos_onground(look, time_delta);
+            update_pos_onground(chunk, look, time_delta);
             break;
         case Falling:
-            update_pos_falling(look, time_delta);
+            update_pos_falling(chunk, look, time_delta);
             break;
         case Flying:
-            update_pos_flying(look, time_delta);
+            update_pos_flying(chunk, look, time_delta);
             break;
         default:
             break;
@@ -192,7 +207,7 @@ void Player::update_velocities(int forwardMotion, int sidewaysMotion, int upMoti
         case OnGround:
             if (upMotion > 0) {
                 _movementState = Falling;
-                _upV += 0.05f;
+                _upV += 0.07f;
             }
         case Falling: {
             int speed = abs(forwardMotion) + abs(sidewaysMotion);
