@@ -102,15 +102,26 @@ Shader::~Shader() {
 ////////////////////////////////////////////////////////////////////////////
 
 FixedColorShader::FixedColorShader(const char * vertex_file_path, const char * fragment_file_path)
-    : Shader(vertex_file_path, fragment_file_path){
+    : Shader(vertex_file_path, fragment_file_path), r_(0), g_(0), b_(0) {
 
     glUseProgram(shaderID);
-    matrixID = glGetUniformLocation(shaderID, "MVP");
-    colorID = glGetUniformLocation(shaderID, "iColor");
+    matrix_id_ = glGetUniformLocation(shaderID, "MVP");
+    color_id_ = glGetUniformLocation(shaderID, "iColor");
 
     // debugging code
-    if (matrixID == -1 || colorID == -1) {
+    if (matrix_id_ == -1 || color_id_ == -1) {
         printf("*** FixedColorShader not loaded correctly\n");
+    }
+    glUniform3f(color_id_, r_, g_, b_);
+}
+
+void FixedColorShader::set_rgb(float r, float g, float b) {
+    glUseProgram(shaderID);
+    if (r != r_ || g != g_ || b != b_) {
+        r_ = r;
+        g_ = g;
+        b_ = b;
+        glUniform3f(color_id_, r_, g_, b_);
     }
 }
 

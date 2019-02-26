@@ -17,10 +17,12 @@ public:
 
 class FixedColorShader : public Shader {
 public:
-    GLint matrixID;
-    GLint colorID;
+    GLint matrix_id_;
+    GLint color_id_;
+    GLfloat r_, g_, b_;
 
     FixedColorShader(const char * vertex_file_path, const char * fragment_file_path);
+    void set_rgb(float r, float g, float b);
 };
 
 ////////////////////////////////////////////////////////////////////////////

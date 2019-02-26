@@ -117,7 +117,7 @@ moving_object missile;
 struct block_object {
     block_object() : x_(3), y_(3), z_(3), falling_(true) {}
 
-    void update(double tick, const Chunk &chunk) {
+    void update(double tick, Chunk &chunk) {
         if (falling_) {
             z_ += vz_ * tick;
             vz_ += GRAVITY * tick;
@@ -125,6 +125,7 @@ struct block_object {
                 z_ = int(z_) + 1;
                 vz_ = 0;
                 falling_ = false;
+                chunk.grid[int(z_)][int(y_)][int(x_)] = 2;
             }
         } 
     }
@@ -335,24 +336,43 @@ void Scene::render(const Chunk &chunk, const float *pos, const float *look) {
     }
     #endif
 
-    if (1)
     {
+        glLineWidth(1);
         for (int z = 0; z < 16; ++z) {
             for (int y = 0; y < 16; ++y) {
                 for (int x = 0; x < 16; ++x) {
-                    if (chunk.grid[z][y][x] > 0) {
+                    if (chunk.grid[z][y][x] == 1) {
                         glBindVertexArray(cube_id);
-                        colorShader->use();
-                        glUniform3f(colorShader->colorID, 0/255.0, 128/255.0, 0/255.0);
+                        colorShader->set_rgb(0/255.0, 128/255.0, 0/255.0);
                         GLfloat model[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, (float)x,(float)y,(float)z,1 };
                         GLfloat squareMVP[16];
                         matmul(MVP, model, squareMVP);
-                        glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, squareMVP);
+                        glUniformMatrix4fv(colorShader->matrix_id_, 1, GL_FALSE, squareMVP);
                         glDrawElements(GL_TRIANGLE_STRIP, 19, GL_UNSIGNED_INT, nullptr);
 
                         glBindVertexArray(cube_outline_id);
-                        glUniform3f(colorShader->colorID, 0, 0, 0);
-                        glLineWidth(1);
+                        colorShader->set_rgb(0, 0, 0);
+                        glDrawElements(GL_LINE_STRIP, 16, GL_UNSIGNED_INT, nullptr);
+                    }
+                }
+            }
+        }
+
+        glLineWidth(5);
+        for (int z = 0; z < 16; ++z) {
+            for (int y = 0; y < 16; ++y) {
+                for (int x = 0; x < 16; ++x) {
+                    if (chunk.grid[z][y][x] == 2) {
+                        glBindVertexArray(cube_id);
+                        colorShader->set_rgb(166/255.0, 166/255.0, 166/255.0);
+                        GLfloat model[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, (float)x,(float)y,(float)z,1 };
+                        GLfloat squareMVP[16];
+                        matmul(MVP, model, squareMVP);
+                        glUniformMatrix4fv(colorShader->matrix_id_, 1, GL_FALSE, squareMVP);
+                        glDrawElements(GL_TRIANGLE_STRIP, 19, GL_UNSIGNED_INT, nullptr);
+
+                        glBindVertexArray(cube_outline_id);
+                        colorShader->set_rgb(0, 0, 0);
                         glDrawElements(GL_LINE_STRIP, 16, GL_UNSIGNED_INT, nullptr);
                     }
                 }
@@ -452,19 +472,18 @@ void Scene::render(const Chunk &chunk, const float *pos, const float *look) {
     // }
 
 
-    {
+    if (falling_cube.falling_) {
         glBindVertexArray(cube_id);
-        colorShader->use();
         //glActiveTexture(GL_TEXTURE0);
-        glUniform3f(colorShader->colorID, 166/255.0, 166/255.0, 166/255.0);
+        colorShader->set_rgb(166/255.0, 166/255.0, 166/255.0);
         GLfloat model[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, falling_cube.x_,falling_cube.y_,falling_cube.z_,1 };
         GLfloat squareMVP[16];
         matmul(MVP, model, squareMVP);
-        glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, squareMVP);
+        glUniformMatrix4fv(colorShader->matrix_id_, 1, GL_FALSE, squareMVP);
         glDrawElements(GL_TRIANGLE_STRIP, 19, GL_UNSIGNED_INT, nullptr);
 
         glBindVertexArray(cube_outline_id);
-        glUniform3f(colorShader->colorID, 0, 0, 0);
+        colorShader->set_rgb(0, 0, 0);
         glLineWidth(5);
         glDrawElements(GL_LINE_STRIP, 16, GL_UNSIGNED_INT, nullptr);
     }
@@ -474,24 +493,24 @@ void Scene::render(const Chunk &chunk, const float *pos, const float *look) {
     if (gGame._mode == Inventory) {
         glBindVertexArray(SquareTexturedVA);
         colorShader->use();
-        glUniform3f(colorShader->colorID, 166/255.0, 166/255.0, 166/255.0);
+        colorShader->set_rgb(166/255.0, 166/255.0, 166/255.0);
         GLfloat model[16] = { 1.5,0,0,0, 0,1.5,0,0, 0,0,0,0, -0.75,-0.75,-0.5,1 };
-        glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, model);
+        glUniformMatrix4fv(colorShader->matrix_id_, 1, GL_FALSE, model);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 
         glBindVertexArray(inventory_cells_va);
         colorShader->use();
-        glUniform3f(colorShader->colorID, 0, 0, 0);
+        colorShader->set_rgb(0, 0, 0);
         GLfloat model_cells[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,-0.51,1 };
-        glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, model_cells);
+        glUniformMatrix4fv(colorShader->matrix_id_, 1, GL_FALSE, model_cells);
         glDrawElements(GL_TRIANGLE_STRIP, 6*5*10, GL_UNSIGNED_INT, nullptr);
 
         // draw a cursor in inventory mode
         glBindVertexArray(SquareTexturedVA);
         colorShader->use();
-        glUniform3f(colorShader->colorID, 255/255.0, 166/255.0, 166/255.0);
+        colorShader->set_rgb(255/255.0, 166/255.0, 166/255.0);
         GLfloat model_cursor[16] = { CURSOR_SIZE,0,0,0, 0,CURSOR_SIZE,0,0, 0,0,0,0, gGame._cursor_x,gGame._cursor_y,-0.52,1 };
-        glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, model_cursor);
+        glUniformMatrix4fv(colorShader->matrix_id_, 1, GL_FALSE, model_cursor);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
     } else {
         // draw crosshairs in play mode?
@@ -511,16 +530,16 @@ void Scene::render(const Chunk &chunk, const float *pos, const float *look) {
     // draw the "always on" action bar
     glBindVertexArray(SquareTexturedVA);
     colorShader->use();
-    glUniform3f(colorShader->colorID, 166/255.0, 166/255.0, 166/255.0);
+    colorShader->set_rgb(166/255.0, 166/255.0, 166/255.0);
     GLfloat model[16] = { 1.5,0,0,0, 0,0.15,0,0, 0,0,0,0, -0.75,-0.95,-0.5,1 };
-    glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, model);
+    glUniformMatrix4fv(colorShader->matrix_id_, 1, GL_FALSE, model);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 
     glBindVertexArray(inventory_cells_va);
     colorShader->use();
-    glUniform3f(colorShader->colorID, 0, 0, 0);
+    colorShader->set_rgb(0, 0, 0);
     GLfloat model_cells[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,-0.95+0.005,-0.51,1 };
-    glUniformMatrix4fv(colorShader->matrixID, 1, GL_FALSE, model_cells);
+    glUniformMatrix4fv(colorShader->matrix_id_, 1, GL_FALSE, model_cells);
     glDrawElements(GL_TRIANGLE_STRIP, 6*1*10, GL_UNSIGNED_INT, nullptr);
 
 
@@ -860,7 +879,7 @@ void load_model(const char *file_name) {
 
 //#############################################################################
 
-void update_object_locations(Player &player, const Chunk &chunk, float *look, double time_delta) {
+void update_object_locations(Player &player, Chunk &chunk, float *look, double time_delta) {
     player.update_pos(chunk, look, time_delta);
 
     missile.update(time_delta);
